@@ -414,8 +414,8 @@ def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: 
     return None
 
 
-def spotify_search_track(artist, track):
-    cache_key = (artist, track)
+def spotify_search_track(artist, track, lineup_artist: str | None = None):
+    cache_key = (artist, track, lineup_artist)
     if cache_key in TRACK_SEARCH_CACHE:
         return TRACK_SEARCH_CACHE[cache_key]
     data = spotify_get('https://api.spotify.com/v1/search', {'q': f'track:{track} artist:{artist}', 'type': 'track', 'limit': 8})
@@ -424,7 +424,7 @@ def spotify_search_track(artist, track):
     best_tuple = None
     target_key = canonical_track_key(track)
     for item in items:
-        skip_reason = should_skip_track_for_artist(artist, item)
+        skip_reason = should_skip_track_for_artist(artist, item, lineup_artist)
         if skip_reason:
             continue
         artist_names = [a['name'] for a in item.get('artists', [])]
@@ -557,7 +557,7 @@ def build_playlist(festival: Festival, user_id: str):
                     source = 'setlist.fm'
                     matched_tracks = []
                     for song, play_count in sorted(recent_song_counts.items(), key=lambda item: (-item[1], item[0].lower())):
-                        track = spotify_search_track(query_artist, song)
+                        track = spotify_search_track(query_artist, song, artist)
                         if not track:
                             choice_log.append({'source': 'setlist.fm', 'trigger': song, 'skip': 'no_spotify_match'})
                             continue
