@@ -394,12 +394,16 @@ def artist_family_match(query_artist: str, track: dict) -> bool:
     return bool(track_artists & allowed)
 
 
-def should_skip_track_for_artist(query_artist: str, track: dict) -> str | None:
+def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: str | None = None) -> str | None:
     title = (track.get('name') or '').lower()
     primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
     if is_short_or_non_song(track):
         return 'too_short_or_non_song'
-    if query_artist in STRICT_ARTIST_ONLY_FALLBACK and simplify_name(primary_artist) != simplify_name(query_artist):
+    strict_artist = next(
+        (artist for artist in (lineup_artist, query_artist) if artist in STRICT_ARTIST_ONLY_FALLBACK),
+        None,
+    )
+    if strict_artist and simplify_name(primary_artist) != simplify_name(strict_artist):
         return 'strict_primary_artist_required'
     if not artist_family_match(query_artist, track):
         return 'artist_family_mismatch'
@@ -557,7 +561,7 @@ def build_playlist(festival: Festival, user_id: str):
                         if not track:
                             choice_log.append({'source': 'setlist.fm', 'trigger': song, 'skip': 'no_spotify_match'})
                             continue
-                        skip_reason = should_skip_track_for_artist(query_artist, track)
+                        skip_reason = should_skip_track_for_artist(query_artist, track, artist)
                         if skip_reason:
                             choice_log.append({'source': 'setlist.fm', 'trigger': song, 'skip': skip_reason, 'matched': track['name']})
                             continue
@@ -591,7 +595,7 @@ def build_playlist(festival: Festival, user_id: str):
                         if max(token_overlap(query_artist, candidate) for candidate in artist_names) < 0.45:
                             choice_log.append({'source': 'spotify-fallback', 'trigger': fallback_name, 'skip': 'artist_mismatch', 'matched': track['name']})
                             continue
-                        skip_reason = should_skip_track_for_artist(query_artist, track)
+                        skip_reason = should_skip_track_for_artist(query_artist, track, artist)
                         if skip_reason:
                             choice_log.append({'source': 'spotify-fallback', 'trigger': fallback_name, 'skip': skip_reason, 'matched': track['name']})
                             continue
