@@ -394,6 +394,11 @@ def artist_family_match(query_artist: str, track: dict) -> bool:
     return bool(track_artists & allowed)
 
 
+def primary_artist_matches_query(query_artist: str, track: dict) -> bool:
+    primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
+    return token_overlap(query_artist, primary_artist) >= 0.45
+
+
 def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: str | None = None) -> str | None:
     title = (track.get('name') or '').lower()
     primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
@@ -405,6 +410,8 @@ def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: 
     )
     if strict_artist and simplify_name(primary_artist) != simplify_name(strict_artist):
         return 'strict_primary_artist_required'
+    if not primary_artist_matches_query(query_artist, track):
+        return 'primary_artist_mismatch'
     if not artist_family_match(query_artist, track):
         return 'artist_family_mismatch'
     if track_version_penalty(track) >= 2:
