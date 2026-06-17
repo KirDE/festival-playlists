@@ -33,6 +33,11 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertIsNone(playlists.should_skip_track_for_artist('Cavalera', track))
 
+    def test_skips_single_token_artist_as_secondary_primary_token(self):
+        track = make_track(artists=['Sub Focus'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Focus.', track), 'primary_artist_mismatch')
+
 
 if __name__ == '__main__':
     unittest.main()
