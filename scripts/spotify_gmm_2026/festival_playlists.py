@@ -49,6 +49,27 @@ STRICT_ARTIST_ONLY_FALLBACK = {'Tom Morello'}
 RECENT_SETLIST_DAYS = 365
 FEATURE_CLAUSE_RE = re.compile(r'(?:[-(\[]\s*)?\b(feat|featuring|ft)\b.*$', re.I)
 GRASPOP_DAYS = ('thursday', 'friday', 'saturday', 'sunday')
+ROCK_IM_PARK_2026_HEADLINERS = [
+    'Bad Omens', 'Volbeat', 'Electric Callboy', 'Ice Nine Kills',
+    'Landmvrks', 'Marteria', 'Three Days Grace', 'Tom Morello',
+]
+ROCK_IM_PARK_2026_ARTISTS = [
+    'Bad Omens', 'Volbeat', 'Electric Callboy', 'Ice Nine Kills', 'Landmvrks',
+    'Marteria', 'Three Days Grace', 'Tom Morello', 'Linkin Park', 'Iron Maiden',
+    'Limp Bizkit', 'The Offspring', 'Papa Roach', 'Breaking Benjamin', 'Babymetal',
+    'Hollywood Undead', 'Sabaton', 'Bush', 'A Perfect Circle', 'Black Veil Brides',
+    'Trivium', 'The Pretty Reckless', 'Within Temptation', 'Architects', 'Alter Bridge',
+    'Set It Off', 'Mastodon', 'We Came As Romans', 'The Hives', 'Palaye Royale',
+    'Social Distortion', 'The Plot In You', 'Finch', 'Loathe', 'The Story So Far',
+    'Basement', 'TX2', 'Magnolia Park', 'Kublai Khan TX', 'Bloodywood', 'TesseracT',
+    'Bury Tomorrow', 'Paleface Swiss', 'Catch Your Breath', 'Bilmuri', 'Don Broco',
+    'Thornhill', 'President', 'The Subways', 'Danko Jones', 'Blood Incantation',
+    'Ecca Vandal', 'Wargasm', 'DRAIN', 'Malevolence', 'Dying Wish',
+    'The Funeral Portrait', 'Boundaries', 'Gatecreeper', 'Letlive.', 'Mehnersmoos',
+    'Bad Nerves', 'Ankor', 'Sondaschule', 'H-Blockx', 'Return to Dust', 'High Vis',
+    'The Butcher Sisters', 'Ego Kill Talent', 'Anna Grey', 'Slay Squad', 'Max Grimm',
+    'Mouth Culture',
+]
 
 
 @dataclass
@@ -237,6 +258,8 @@ def fetch_rock_im_park():
             artists.append(name)
             if cls == 'first-in-line':
                 headliners.append(name)
+    if not artists:
+        return ROCK_IM_PARK_2026_ARTISTS, ROCK_IM_PARK_2026_HEADLINERS
     return artists, headliners[:8]
 
 
@@ -534,6 +557,8 @@ def build_playlist(festival: Festival, user_id: str):
     aliases = festival.aliases or {}
     spotify_artist_ids = festival.spotify_artist_ids or {}
     artists = [a for a in artists_raw if not should_exclude(a, festival)]
+    if not artists:
+        raise RuntimeError(f'{festival.key}: lineup is empty; refusing to overwrite playlist')
     fast_sort = os.environ.get('FESTIVAL_FAST_SORT') == '1'
     followers = {}
     if not fast_sort:
