@@ -711,6 +711,8 @@ def main():
             description='Listen to all bands from Impericon 2026.',
             lineup_fn=fetch_impericon,
             existing_playlist_id='2jMqmVKjXfoOjflwyZ5E5D',
+            spotify_artist_ids={'Montreal': '1WBgY3ppwWenEynLyKUNRk'},
+            mbids={'Montreal': '87cf6aa6-a005-445b-8920-1c5b3fdfbfaa'},
         ),
         Festival(
             key='summer_breeze_2026',
