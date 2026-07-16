@@ -67,6 +67,30 @@ class TrackFilterTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'lineup is empty'):
             playlists.build_playlist(festival, 'user-id')
 
+    def test_spotify_search_prefers_clean_version_over_feat_version(self):
+        clean = make_track(name='Festival Song', artists=['Example Artist'])
+        clean.update({'uri': 'spotify:track:clean', 'popularity': 50})
+        feat = make_track(name='Festival Song (feat. Guest)', artists=['Example Artist', 'Guest'])
+        feat.update({'uri': 'spotify:track:feat', 'popularity': 90})
+
+        with patch.object(playlists, 'spotify_get', return_value={'tracks': {'items': [feat, clean]}}):
+            result = playlists.spotify_search_track('Example Artist', 'Festival Song')
+
+        self.assertEqual(result['uri'], 'spotify:track:clean')
+
+    def test_spotify_top_tracks_prefers_clean_versions_before_feat_versions(self):
+        artist = {'id': 'artist-id', 'name': 'Example Artist', 'followers': {'total': 1}}
+        clean = make_track(name='Clean Song', artists=['Example Artist'])
+        clean.update({'uri': 'spotify:track:clean', 'popularity': 50})
+        feat = make_track(name='Featured Song (feat. Guest)', artists=['Example Artist', 'Guest'])
+        feat.update({'uri': 'spotify:track:feat', 'popularity': 90})
+
+        with patch.object(playlists, 'spotify_get_artist_by_id', return_value=artist), \
+                patch.object(playlists, 'spotify_get', return_value={'tracks': [feat, clean]}):
+            _, tracks = playlists.spotify_top_tracks('Example Artist', limit=2, artist_id='artist-id')
+
+        self.assertEqual([track['uri'] for track in tracks], ['spotify:track:clean', 'spotify:track:feat'])
+
 
 if __name__ == '__main__':
     unittest.main()

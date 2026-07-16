@@ -467,7 +467,13 @@ def spotify_search_track(artist, track, lineup_artist: str | None = None):
             match_score += 1.0
         title_key = canonical_track_key(item.get('name', ''))
         title_score = 1.0 if title_key == target_key else token_overlap(track, item.get('name', ''))
-        candidate_tuple = (match_score, title_score, -track_version_penalty(item), item.get('popularity', 0))
+        candidate_tuple = (
+            match_score,
+            title_score,
+            not is_feat_track(item),
+            -track_version_penalty(item),
+            item.get('popularity', 0),
+        )
         if best_tuple is None or candidate_tuple > best_tuple:
             best_tuple = candidate_tuple
             best = item
@@ -513,7 +519,13 @@ def spotify_top_tracks(name, limit=8, artist_id: str | None = None):
         return None, []
     data = spotify_get(f"https://api.spotify.com/v1/artists/{artist['id']}/top-tracks", {'market': 'DE'})
     tracks = [track for track in data.get('tracks', []) if not is_short_or_non_song(track)]
-    tracks.sort(key=lambda t: (-t.get('popularity', 0), is_feat_track(t), track_version_penalty(t), -int(simplify_name(t['artists'][0]['name']) == simplify_name(name)), t.get('name', '')))
+    tracks.sort(key=lambda t: (
+        is_feat_track(t),
+        track_version_penalty(t),
+        -t.get('popularity', 0),
+        -int(simplify_name(t['artists'][0]['name']) == simplify_name(name)),
+        t.get('name', ''),
+    ))
     return artist, tracks[:limit]
 
 
