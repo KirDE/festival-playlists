@@ -399,7 +399,9 @@ def is_short_or_non_song(track: dict) -> bool:
 def track_version_penalty(track: dict) -> int:
     title = (track.get('name') or '').lower()
     penalty = 0
-    if any(token in title for token in ['live', 'remix', 'acoustic', 'instrumental', 'cover']):
+    if re.search(r'(\(|\[|-)\s*live\b|\blive\s+(at|from|in|on)\b', title):
+        penalty += 2
+    if any(token in title for token in ['remix', 'acoustic', 'instrumental', 'cover']):
         penalty += 2
     if 'edit' in title:
         penalty += 1

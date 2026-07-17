@@ -91,6 +91,18 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertEqual([track['uri'] for track in tracks], ['spotify:track:clean', 'spotify:track:feat'])
 
+    def test_live_word_inside_song_title_is_not_live_version(self):
+        track = make_track(name='Live It Up', artists=['Example Artist'])
+
+        self.assertEqual(playlists.track_version_penalty(track), 0)
+        self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', track))
+
+    def test_live_version_marker_is_penalized(self):
+        track = make_track(name='Clean Song - Live at Wacken', artists=['Example Artist'])
+
+        self.assertEqual(playlists.track_version_penalty(track), 2)
+        self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', track), 'bad_version')
+
 
 if __name__ == '__main__':
     unittest.main()
