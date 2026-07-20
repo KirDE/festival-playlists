@@ -103,6 +103,26 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(playlists.track_version_penalty(track), 2)
         self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', track), 'bad_version')
 
+    def test_wacken_excludes_non_band_listing_entries(self):
+        festival = playlists.Festival(
+            key='wacken_test',
+            display_name='Wacken Test',
+            playlist_name='Wacken Test',
+            description='Wacken Test',
+            lineup_fn=lambda: ([], []),
+            extra_excludes={
+                'Acoustic Guerillas feat Ellerbek Pussyboys',
+                'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"',
+                'Metal Battle tba.',
+                'System of a Down by Anett & Livi Acoustic + Radó Éden',
+                'Tribute2Wacken',
+                'Wildcover',
+            },
+        )
+
+        for artist in festival.extra_excludes:
+            self.assertTrue(playlists.should_exclude(artist, festival))
+
 
 if __name__ == '__main__':
     unittest.main()

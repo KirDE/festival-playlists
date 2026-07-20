@@ -741,7 +741,12 @@ def main():
             lineup_fn=fetch_wacken,
             existing_playlist_id='5TWytVVqnSFQw6eVdhBIK6',
             aliases={'Lamb of God': 'Lamb Of God', 'Heaven Shall Burn': 'Heaven Shall Burn', 'Of Mice and Men': 'Of Mice & Men', 'Dieter "Maschine" Birr': 'Dieter "Maschine" Birr', 'Novelization': 'Novelization'},
-            extra_excludes={'Maschine\'s Late Night Show', 'Wacken Firefighters', 'Cowgirls From Hell', 'Blood Fire Death', 'Electric Bassboy'},
+            extra_excludes={
+                'Maschine\'s Late Night Show', 'Wacken Firefighters', 'Cowgirls From Hell',
+                'Blood Fire Death', 'Electric Bassboy', 'Acoustic Guerillas feat Ellerbek Pussyboys',
+                'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"', 'Metal Battle tba.',
+                'System of a Down by Anett & Livi Acoustic + Radó Éden', 'Tribute2Wacken', 'Wildcover',
+            },
         ),
         Festival(
             key='impericon_leipzig_2026',
