@@ -569,6 +569,11 @@ def explain_track_choice(track: dict, source: str, artist: str, trigger: str) ->
     }
 
 
+def setlist_track_sort_key(item: tuple[int, int, str, dict]) -> tuple:
+    popularity, play_count, song, track = item
+    return (-play_count, -popularity, is_feat_track(track), song.lower())
+
+
 def build_playlist(festival: Festival, user_id: str):
     artists_raw, headliners = festival.lineup_fn()
     aliases = festival.aliases or {}
@@ -619,7 +624,7 @@ def build_playlist(festival: Festival, user_id: str):
                             choice_log.append({'source': 'setlist.fm', 'trigger': song, 'skip': skip_reason, 'matched': track['name']})
                             continue
                         matched_tracks.append((track.get('popularity', 0), play_count, song, track))
-                    matched_tracks.sort(key=lambda item: (-item[0], -item[1], is_feat_track(item[3]), item[2].lower()))
+                    matched_tracks.sort(key=setlist_track_sort_key)
                     for _, play_count, song, track in matched_tracks:
                         song_key = canonical_track_key(track['name'])
                         if song_key in seen_song_keys:

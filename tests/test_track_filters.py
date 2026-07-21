@@ -101,6 +101,17 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertEqual([track['uri'] for track in tracks], ['spotify:track:clean', 'spotify:track:feat'])
 
+    def test_setlist_tracks_sort_by_recent_plays_before_spotify_popularity(self):
+        frequent = make_track(name='Frequent Song')
+        popular = make_track(name='Popular Song')
+
+        ranked = sorted([
+            (95, 2, 'Popular Song', popular),
+            (50, 5, 'Frequent Song', frequent),
+        ], key=playlists.setlist_track_sort_key)
+
+        self.assertEqual(ranked[0][2], 'Frequent Song')
+
     def test_live_word_inside_song_title_is_not_live_version(self):
         track = make_track(name='Live It Up', artists=['Example Artist'])
 
