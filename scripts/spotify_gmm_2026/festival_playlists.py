@@ -425,7 +425,10 @@ def primary_artist_matches_query(query_artist: str, track: dict) -> bool:
     primary_tokens = simplify_name(primary_artist).split()
     if len(query_tokens) == 1 and len(primary_tokens) > 1 and query_tokens[0] != primary_tokens[0]:
         return False
-    return token_overlap(query_artist, primary_artist) >= 0.45
+    overlap = token_overlap(query_artist, primary_artist)
+    if len(query_tokens) > 1 and len(primary_tokens) > 1 and overlap <= 0.5:
+        return False
+    return overlap >= 0.45
 
 
 def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: str | None = None) -> str | None:

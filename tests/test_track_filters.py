@@ -44,6 +44,16 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertEqual(playlists.should_skip_track_for_artist('Focus.', track), 'primary_artist_mismatch')
 
+    def test_skips_two_token_partial_artist_match(self):
+        track = make_track(artists=['Victor Ray'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Kay Ray', track), 'primary_artist_mismatch')
+
+    def test_skips_two_token_partial_artist_match_in_fallback(self):
+        track = make_track(artists=['Metal Carter'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Metal Karate', track), 'primary_artist_mismatch')
+
     def test_rock_im_park_uses_2026_snapshot_when_live_page_has_no_lineup(self):
         class Response:
             text = '<html><title>Rock im Park 2027</title></html>'
