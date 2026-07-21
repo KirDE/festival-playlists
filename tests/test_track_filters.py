@@ -113,7 +113,10 @@ class TrackFilterTest(unittest.TestCase):
             extra_excludes={
                 'Acoustic Guerillas feat Ellerbek Pussyboys',
                 'Acoustic Steel',
+                'Bastian Zach',
+                'Kay Ray',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"',
+                'Metal Karate',
                 'Metal Battle tba.',
                 'System of a Down by Anett & Livi Acoustic + Radó Éden',
                 'Tribute2Wacken',
