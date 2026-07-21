@@ -112,6 +112,7 @@ class TrackFilterTest(unittest.TestCase):
             lineup_fn=lambda: ([], []),
             extra_excludes={
                 'Acoustic Guerillas feat Ellerbek Pussyboys',
+                'Acoustic Steel',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"',
                 'Metal Battle tba.',
                 'System of a Down by Anett & Livi Acoustic + Radó Éden',
