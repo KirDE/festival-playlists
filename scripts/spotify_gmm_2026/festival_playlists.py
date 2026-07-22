@@ -187,6 +187,10 @@ def token_overlap(a: str, b: str) -> float:
     return len(sa & sb) / max(len(sa), len(sb))
 
 
+def setlist_lookup_name(name: str) -> str:
+    return FEATURE_CLAUSE_RE.sub('', name).strip() or name
+
+
 def looks_like_tribute(name: str) -> bool:
     lowered = name.lower()
     if any(keyword in lowered for keyword in KEYWORDS_EXCLUDE):
@@ -600,6 +604,7 @@ def build_playlist(festival: Festival, user_id: str):
     report = []
     for artist in ordered_artists:
         query_artist = aliases.get(artist, artist)
+        setlist_artist = setlist_lookup_name(query_artist)
         spotify_artist_id = spotify_artist_ids.get(artist)
         forced_mbid = (festival.mbids or {}).get(artist)
         selected = []
@@ -609,14 +614,14 @@ def build_playlist(festival: Festival, user_id: str):
         choice_log = []
         try:
             if not mbid:
-                mbid = search_artist_mbid(query_artist)
+                mbid = search_artist_mbid(setlist_artist)
             if mbid:
                 recent_song_counts = extract_recent_songs(recent_setlists(mbid))
                 if recent_song_counts:
                     source = 'setlist.fm'
                     matched_tracks = []
                     for song, play_count in sorted(recent_song_counts.items(), key=lambda item: (-item[1], item[0].lower())):
-                        track = spotify_search_track(query_artist, song, artist)
+                        track = spotify_search_track(setlist_artist, song, artist)
                         if not track:
                             choice_log.append({'source': 'setlist.fm', 'trigger': song, 'skip': 'no_spotify_match'})
                             continue
