@@ -54,6 +54,11 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertEqual(playlists.should_skip_track_for_artist('Metal Karate', track), 'primary_artist_mismatch')
 
+    def test_accepts_lineup_artist_with_featuring_clause_as_base_artist(self):
+        track = make_track(artists=['Sex Pistols'])
+
+        self.assertIsNone(playlists.should_skip_track_for_artist('Sex Pistols featuring Frank Carter', track))
+
     def test_rock_im_park_uses_2026_snapshot_when_live_page_has_no_lineup(self):
         class Response:
             text = '<html><title>Rock im Park 2027</title></html>'
