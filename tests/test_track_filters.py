@@ -62,6 +62,20 @@ class TrackFilterTest(unittest.TestCase):
     def test_setlist_lookup_strips_featuring_clause(self):
         self.assertEqual(playlists.setlist_lookup_name('Sex Pistols featuring Frank Carter'), 'Sex Pistols')
 
+    def test_single_token_mbid_search_requires_exact_artist_name(self):
+        response = {'artist': [{'name': 'Twilight Force', 'mbid': 'twilight-force-mbid'}]}
+
+        playlists.MBID_CACHE.clear()
+        with patch.object(playlists, 'sl_get', return_value=response):
+            self.assertIsNone(playlists.search_artist_mbid('Force'))
+
+    def test_single_token_mbid_search_accepts_exact_artist_name(self):
+        response = {'artist': [{'name': 'Force', 'mbid': 'force-mbid'}]}
+
+        playlists.MBID_CACHE.clear()
+        with patch.object(playlists, 'sl_get', return_value=response):
+            self.assertEqual(playlists.search_artist_mbid('Force'), 'force-mbid')
+
     def test_rock_im_park_uses_2026_snapshot_when_live_page_has_no_lineup(self):
         class Response:
             text = '<html><title>Rock im Park 2027</title></html>'

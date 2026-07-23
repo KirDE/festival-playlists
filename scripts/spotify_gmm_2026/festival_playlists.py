@@ -317,6 +317,10 @@ def search_artist_mbid(name):
     best_score = 0.0
     for artist in artists[:5]:
         candidate = artist.get('name') or ''
+        query_tokens = simplify_name(name).split()
+        candidate_tokens = simplify_name(candidate).split()
+        if len(query_tokens) == 1 and query_tokens != candidate_tokens:
+            continue
         score = token_overlap(name, candidate)
         if simplify_name(name) == simplify_name(candidate):
             score += 1.0
