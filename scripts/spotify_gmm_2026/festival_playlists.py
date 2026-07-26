@@ -764,6 +764,7 @@ def main():
             extra_excludes={
                 'Maschine\'s Late Night Show', 'Wacken Firefighters', 'Cowgirls From Hell',
                 'Blood Fire Death', 'Electric Bassboy', 'Kay Ray', 'Metal Karate', 'Bastian Zach',
+                'Blaas of Glory', 'Jazz Sabbath', 'The Ukeboys', 'Vika Goes Wild',
                 'Acoustic Guerillas feat Ellerbek Pussyboys', 'Acoustic Steel',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"', 'Metal Battle tba.',
                 'System of a Down by Anett & Livi Acoustic + Radó Éden', 'Tribute2Wacken', 'Wildcover',
