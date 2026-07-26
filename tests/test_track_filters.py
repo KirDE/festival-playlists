@@ -146,6 +146,25 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(playlists.track_version_penalty(track), 2)
         self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', track), 'bad_version')
 
+    def test_edit_version_marker_is_rejected(self):
+        track = make_track(name='Clean Song - edit', artists=['Example Artist'])
+
+        self.assertEqual(playlists.track_version_penalty(track), 2)
+        self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', track), 'bad_version')
+
+    def test_radio_and_extended_versions_are_rejected(self):
+        radio = make_track(name='Clean Song - Radio Version', artists=['Example Artist'])
+        extended = make_track(name='Clean Song - Extended Version', artists=['Example Artist'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', radio), 'bad_version')
+        self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', extended), 'bad_version')
+
+    def test_named_album_version_is_not_rejected(self):
+        track = make_track(name='Everytime We Touch - TEKKNO Version', artists=['Example Artist'])
+
+        self.assertEqual(playlists.track_version_penalty(track), 0)
+        self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', track))
+
     def test_wacken_excludes_non_band_listing_entries(self):
         festival = playlists.Festival(
             key='wacken_test',

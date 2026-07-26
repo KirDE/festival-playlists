@@ -411,8 +411,10 @@ def track_version_penalty(track: dict) -> int:
         penalty += 2
     if any(token in title for token in ['remix', 'acoustic', 'instrumental', 'cover']):
         penalty += 2
-    if 'edit' in title:
-        penalty += 1
+    if re.search(r'(\(|\[|-)\s*(radio\s+)?edit\b', title):
+        penalty += 2
+    if re.search(r'(\(|\[|-)\s*(radio|extended|reworked)\s+version\b', title):
+        penalty += 2
     return penalty
 
 
