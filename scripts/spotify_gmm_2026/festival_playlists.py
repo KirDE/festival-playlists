@@ -46,6 +46,9 @@ PERSISTENT_SETLIST_CACHE = json.loads(SETLIST_CACHE_FILE.read_text(encoding='utf
 MIN_TRACK_MS = 90_000
 NON_SONG_TITLE_HINTS = {'intro', 'outro', 'interlude', 'overture'}
 STRICT_ARTIST_ONLY_FALLBACK = {'Tom Morello'}
+LIVE_REPERTOIRE_PRIMARY_ARTISTS = {
+    'Tom Morello': {'Tom Morello', 'Rage Against The Machine', 'Audioslave', 'Prophets Of Rage'},
+}
 RECENT_SETLIST_DAYS = 365
 FEATURE_CLAUSE_RE = re.compile(r'(?:[-(\[]\s*)?\b(feat|featuring|ft)\b.*$', re.I)
 GRASPOP_DAYS = ('thursday', 'friday', 'saturday', 'sunday')
@@ -429,7 +432,17 @@ def artist_family_match(query_artist: str, track: dict) -> bool:
     return bool(track_artists & allowed)
 
 
+def live_repertoire_primary_match(query_artist: str, track: dict) -> bool:
+    allowed = LIVE_REPERTOIRE_PRIMARY_ARTISTS.get(query_artist)
+    if not allowed:
+        return False
+    primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
+    return simplify_name(primary_artist) in {simplify_name(artist) for artist in allowed}
+
+
 def primary_artist_matches_query(query_artist: str, track: dict) -> bool:
+    if live_repertoire_primary_match(query_artist, track):
+        return True
     primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
     query_base = FEATURE_CLAUSE_RE.sub('', query_artist).strip()
     query_tokens = simplify_name(query_base or query_artist).split()
@@ -451,7 +464,7 @@ def should_skip_track_for_artist(query_artist: str, track: dict, lineup_artist: 
         (artist for artist in (lineup_artist, query_artist) if artist in STRICT_ARTIST_ONLY_FALLBACK),
         None,
     )
-    if strict_artist and simplify_name(primary_artist) != simplify_name(strict_artist):
+    if strict_artist and not live_repertoire_primary_match(strict_artist, track) and simplify_name(primary_artist) != simplify_name(strict_artist):
         return 'strict_primary_artist_required'
     if not primary_artist_matches_query(query_artist, track):
         return 'primary_artist_mismatch'
@@ -468,8 +481,21 @@ def spotify_search_track(artist, track, lineup_artist: str | None = None):
     cache_key = (artist, track, lineup_artist)
     if cache_key in TRACK_SEARCH_CACHE:
         return TRACK_SEARCH_CACHE[cache_key]
-    data = spotify_get('https://api.spotify.com/v1/search', {'q': f'track:{track} artist:{artist}', 'type': 'track', 'limit': 8})
-    items = data.get('tracks', {}).get('items', [])
+    search_artists = [artist]
+    for allowed_artist in sorted(LIVE_REPERTOIRE_PRIMARY_ARTISTS.get(lineup_artist or artist, ())):
+        if simplify_name(allowed_artist) != simplify_name(artist):
+            search_artists.append(allowed_artist)
+    items = []
+    seen_item_ids = set()
+    for search_artist in search_artists:
+        data = spotify_get('https://api.spotify.com/v1/search', {'q': f'track:{track} artist:{search_artist}', 'type': 'track', 'limit': 8})
+        for item in data.get('tracks', {}).get('items', []):
+            item_id = item.get('id')
+            if item_id and item_id in seen_item_ids:
+                continue
+            if item_id:
+                seen_item_ids.add(item_id)
+            items.append(item)
     best = None
     best_tuple = None
     target_key = canonical_track_key(track)
@@ -480,6 +506,8 @@ def spotify_search_track(artist, track, lineup_artist: str | None = None):
         artist_names = [a['name'] for a in item.get('artists', [])]
         match_score = max(token_overlap(artist, candidate) for candidate in artist_names) if artist_names else 0.0
         if simplify_name(artist) in [simplify_name(candidate) for candidate in artist_names]:
+            match_score += 1.0
+        if live_repertoire_primary_match(lineup_artist or artist, item):
             match_score += 1.0
         title_key = canonical_track_key(item.get('name', ''))
         title_score = 1.0 if title_key == target_key else token_overlap(track, item.get('name', ''))

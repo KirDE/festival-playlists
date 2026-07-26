@@ -15,6 +15,7 @@ def make_track(name='Song', artists=None, duration_ms=180_000):
         'name': name,
         'artists': [{'name': artist} for artist in (artists or ['Example Artist'])],
         'duration_ms': duration_ms,
+        'id': name.lower().replace(' ', '-'),
     }
 
 
@@ -122,6 +123,30 @@ class TrackFilterTest(unittest.TestCase):
             _, tracks = playlists.spotify_top_tracks('Example Artist', limit=2, artist_id='artist-id')
 
         self.assertEqual([track['uri'] for track in tracks], ['spotify:track:clean', 'spotify:track:feat'])
+
+    def test_tom_morello_accepts_live_repertoire_primary_artists(self):
+        for primary_artist in ['Tom Morello', 'Rage Against The Machine', 'Audioslave', 'Prophets Of Rage']:
+            with self.subTest(primary_artist=primary_artist):
+                track = make_track(artists=[primary_artist])
+
+                self.assertIsNone(playlists.should_skip_track_for_artist('Tom Morello', track, 'Tom Morello'))
+
+    def test_tom_morello_setlist_search_includes_live_repertoire_artists(self):
+        calls = []
+        rage_track = make_track(name='Bulls On Parade', artists=['Rage Against The Machine'])
+        rage_track.update({'uri': 'spotify:track:rage', 'popularity': 80, 'id': 'rage'})
+
+        def fake_spotify_get(_url, params):
+            calls.append(params['q'])
+            if params['q'] == 'track:Bulls On Parade artist:Rage Against The Machine':
+                return {'tracks': {'items': [rage_track]}}
+            return {'tracks': {'items': []}}
+
+        with patch.object(playlists, 'spotify_get', side_effect=fake_spotify_get):
+            result = playlists.spotify_search_track('Tom Morello', 'Bulls On Parade', 'Tom Morello')
+
+        self.assertEqual(result['uri'], 'spotify:track:rage')
+        self.assertIn('track:Bulls On Parade artist:Rage Against The Machine', calls)
 
     def test_setlist_tracks_sort_by_recent_plays_before_spotify_popularity(self):
         frequent = make_track(name='Frequent Song')
