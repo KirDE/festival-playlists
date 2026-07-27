@@ -787,6 +787,7 @@ def main():
             lineup_fn=fetch_graspop,
             existing_playlist_id='3jyENqyk94CZYS71X2S7GY',
             aliases={'Cavalera "Chaos A.D."': 'Cavalera', 'Death To All': 'Death to All'},
+            extra_excludes={'Bulls on Parade'},
         ),
         Festival(
             key='rock_im_park_2026',
@@ -811,6 +812,8 @@ def main():
                 'Maschine\'s Late Night Show', 'Wacken Firefighters', 'Cowgirls From Hell',
                 'Blood Fire Death', 'Electric Bassboy', 'Kay Ray', 'Metal Karate', 'Bastian Zach',
                 'Blaas of Glory', 'Jazz Sabbath', 'The Ukeboys', 'Vika Goes Wild',
+                'Adrian Pauls Rockin\' Roncalli Show', 'Corrupted Blood - Pit Session',
+                'Dragons & Pois Show',
                 'Acoustic Guerillas feat Ellerbek Pussyboys', 'Acoustic Steel',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"', 'Metal Battle tba.',
                 'System of a Down by Anett & Livi Acoustic + Radó Éden', 'Tribute2Wacken', 'Wildcover',
@@ -834,7 +837,11 @@ def main():
             lineup_fn=fetch_summer_breeze,
             existing_playlist_id='6rWAXV1sR2E6ZDbHcWBVfD',
             aliases={'Lamb Of God': 'Lamb Of God', 'Paleface Swiss': 'Paleface Swiss'},
-            extra_excludes={'Randale *Familienkonzert*', 'RODSCHA AUS KAMBODSCHA UND TOM PALME', 'Blasmusik Illenschwang'},
+            extra_excludes={
+                'Randale *Familienkonzert*', 'RODSCHA AUS KAMBODSCHA UND TOM PALME',
+                'Blasmusik Illenschwang', 'Harsh Vocals mit Britta Görtz',
+                'Metalza – Metal Workout', 'Metal Yoga', 'Into The Voidcast',
+            },
         ),
     ]
     selected = os.environ.get('FESTIVALS')

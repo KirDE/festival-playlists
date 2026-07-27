@@ -256,8 +256,11 @@ class TrackFilterTest(unittest.TestCase):
             extra_excludes={
                 'Acoustic Guerillas feat Ellerbek Pussyboys',
                 'Acoustic Steel',
+                'Adrian Pauls Rockin\' Roncalli Show',
                 'Bastian Zach',
                 'Blaas of Glory',
+                'Corrupted Blood - Pit Session',
+                'Dragons & Pois Show',
                 'Jazz Sabbath',
                 'Kay Ray',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"',
@@ -273,6 +276,34 @@ class TrackFilterTest(unittest.TestCase):
 
         for artist in festival.extra_excludes:
             self.assertTrue(playlists.should_exclude(artist, festival))
+
+    def test_festival_specific_excludes_non_band_program_entries(self):
+        graspop = playlists.Festival(
+            key='graspop_test',
+            display_name='Graspop Test',
+            playlist_name='Graspop Test',
+            description='Graspop Test',
+            lineup_fn=lambda: ([], []),
+            extra_excludes={'Bulls on Parade'},
+        )
+        summer_breeze = playlists.Festival(
+            key='summer_breeze_test',
+            display_name='Summer Breeze Test',
+            playlist_name='Summer Breeze Test',
+            description='Summer Breeze Test',
+            lineup_fn=lambda: ([], []),
+            extra_excludes={
+                'Harsh Vocals mit Britta Görtz',
+                'Into The Voidcast',
+                'Metal Yoga',
+                'Metalza – Metal Workout',
+            },
+        )
+
+        self.assertTrue(playlists.should_exclude('Bulls on Parade', graspop))
+        for artist in summer_breeze.extra_excludes:
+            with self.subTest(artist=artist):
+                self.assertTrue(playlists.should_exclude(artist, summer_breeze))
 
 
 if __name__ == '__main__':
