@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -185,12 +186,20 @@ class TrackFilterTest(unittest.TestCase):
             track.update({'uri': f'spotify:track:{index}', 'popularity': 100 - index})
             tracks.append(track)
 
-        with patch.object(playlists, 'search_artist_mbid', return_value=None), \
-                patch.object(playlists, 'get_followers', return_value=1), \
-                patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, tracks)) as top_tracks, \
-                patch.object(playlists, 'update_playlist_details'), \
-                patch.object(playlists, 'playlist_replace_all'):
-            playlists.build_playlist(festival, 'user-id')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_dir = Path(tmpdir) / 'reports'
+            cache_file = Path(tmpdir) / 'cache' / 'setlist_cache.json'
+            report_dir.mkdir(parents=True)
+            cache_file.parent.mkdir(parents=True)
+
+            with patch.object(playlists, 'REPORT_DIR', report_dir), \
+                    patch.object(playlists, 'SETLIST_CACHE_FILE', cache_file), \
+                    patch.object(playlists, 'search_artist_mbid', return_value=None), \
+                    patch.object(playlists, 'get_followers', return_value=1), \
+                    patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, tracks)) as top_tracks, \
+                    patch.object(playlists, 'update_playlist_details'), \
+                    patch.object(playlists, 'playlist_replace_all'):
+                playlists.build_playlist(festival, 'user-id')
 
         top_tracks.assert_called_once_with('Example Artist', 10, artist_id=None)
 
