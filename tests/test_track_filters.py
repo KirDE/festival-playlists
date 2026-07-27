@@ -198,7 +198,8 @@ class TrackFilterTest(unittest.TestCase):
                     patch.object(playlists, 'get_followers', return_value=1), \
                     patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, tracks)) as top_tracks, \
                     patch.object(playlists, 'update_playlist_details'), \
-                    patch.object(playlists, 'playlist_replace_all'):
+                    patch.object(playlists, 'playlist_replace_all'), \
+                    patch('builtins.print'):
                 playlists.build_playlist(festival, 'user-id')
 
         top_tracks.assert_called_once_with('Example Artist', 10, artist_id=None)
