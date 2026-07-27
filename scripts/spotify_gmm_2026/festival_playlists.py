@@ -13,7 +13,7 @@ import requests
 
 from spotify_auth import auth_headers
 
-SETLIST_API_KEY = os.environ['SETLIST_API_KEY']
+SETLIST_API_KEY = os.environ.get('SETLIST_API_KEY')
 REPORT_DIR = Path('outputs/festival_playlists')
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR = Path('tmp/festival_playlists_cache')
@@ -21,10 +21,11 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SETLIST_CACHE_FILE = CACHE_DIR / 'setlist_cache.json'
 
 SETLIST_HEADERS = {
-    'x-api-key': SETLIST_API_KEY,
     'Accept': 'application/json',
     'User-Agent': 'Clawdbie-Festival-Playlists/1.1',
 }
+if SETLIST_API_KEY:
+    SETLIST_HEADERS['x-api-key'] = SETLIST_API_KEY
 RATE_LIMIT_SECONDS = 1.05
 SETLIST_RETRY_CODES = {429, 500, 502, 503, 504}
 _last_setlist_call = 0.0
@@ -91,6 +92,7 @@ class Festival:
 
 
 def sl_get(url, params=None, retries=4):
+    require_setlist_api_key()
     global _last_setlist_call
     params = params or {}
     attempt = 0
@@ -108,6 +110,11 @@ def sl_get(url, params=None, retries=4):
             continue
         response.raise_for_status()
         return response.json()
+
+
+def require_setlist_api_key():
+    if not SETLIST_API_KEY:
+        raise RuntimeError('SETLIST_API_KEY is required to fetch live setlist.fm data before regenerating festival playlists')
 
 
 def _spotify_request(method, url, *, params=None, payload=None, retries=6):
@@ -769,6 +776,7 @@ def build_playlist(festival: Festival, user_id: str):
 
 
 def main():
+    require_setlist_api_key()
     me = spotify_get('https://api.spotify.com/v1/me')
     festivals = [
         Festival(

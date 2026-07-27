@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import sys
 import unittest
@@ -20,6 +21,19 @@ def make_track(name='Song', artists=None, duration_ms=180_000):
 
 
 class TrackFilterTest(unittest.TestCase):
+    def test_import_without_setlist_key_for_offline_analysis(self):
+        module_path = Path(__file__).resolve().parents[1] / 'scripts' / 'spotify_gmm_2026' / 'festival_playlists.py'
+
+        with patch.dict(os.environ, {}, clear=True):
+            spec = importlib.util.spec_from_file_location('festival_playlists_no_key', module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+        self.assertIsNone(module.SETLIST_API_KEY)
+        self.assertNotIn('x-api-key', module.SETLIST_HEADERS)
+        with self.assertRaisesRegex(RuntimeError, 'SETLIST_API_KEY is required'):
+            module.require_setlist_api_key()
+
     def test_skips_tracks_where_lineup_artist_is_only_featured(self):
         track = make_track(artists=['Kontra K', 'Anna Grey'])
 
