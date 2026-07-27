@@ -148,6 +148,38 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(result['uri'], 'spotify:track:rage')
         self.assertIn('track:Bulls On Parade artist:Rage Against The Machine', calls)
 
+    def test_montreal_rejects_of_montreal_prefix_match(self):
+        track = make_track(artists=['of Montreal'])
+
+        self.assertEqual(
+            playlists.should_skip_track_for_artist('Montreal', track, 'Montreal'),
+            'primary_artist_mismatch',
+        )
+
+    def test_identical_fallback_names_are_searched_once_with_ten_tracks(self):
+        festival = playlists.Festival(
+            key='fallback_test',
+            display_name='Fallback Test',
+            playlist_name='Fallback Test',
+            description='Fallback Test',
+            lineup_fn=lambda: (['Example Artist'], []),
+            existing_playlist_id='playlist-id',
+        )
+        tracks = []
+        for index in range(1, 6):
+            track = make_track(name=f'Song {index}', artists=['Example Artist'])
+            track.update({'uri': f'spotify:track:{index}', 'popularity': 100 - index})
+            tracks.append(track)
+
+        with patch.object(playlists, 'search_artist_mbid', return_value=None), \
+                patch.object(playlists, 'get_followers', return_value=1), \
+                patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, tracks)) as top_tracks, \
+                patch.object(playlists, 'update_playlist_details'), \
+                patch.object(playlists, 'playlist_replace_all'):
+            playlists.build_playlist(festival, 'user-id')
+
+        top_tracks.assert_called_once_with('Example Artist', 10, artist_id=None)
+
     def test_setlist_tracks_sort_by_recent_plays_before_spotify_popularity(self):
         frequent = make_track(name='Frequent Song')
         popular = make_track(name='Popular Song')

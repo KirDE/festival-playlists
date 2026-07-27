@@ -49,6 +49,7 @@ STRICT_ARTIST_ONLY_FALLBACK = {'Tom Morello'}
 LIVE_REPERTOIRE_PRIMARY_ARTISTS = {
     'Tom Morello': {'Tom Morello', 'Rage Against The Machine', 'Audioslave', 'Prophets Of Rage'},
 }
+BLOCKED_PRIMARY_ARTIST_PREFIXES = {'of'}
 RECENT_SETLIST_DAYS = 365
 FEATURE_CLAUSE_RE = re.compile(r'(?:[-(\[]\s*)?\b(feat|featuring|ft)\b.*$', re.I)
 GRASPOP_DAYS = ('thursday', 'friday', 'saturday', 'sunday')
@@ -444,12 +445,20 @@ def primary_artist_matches_query(query_artist: str, track: dict) -> bool:
     if live_repertoire_primary_match(query_artist, track):
         return True
     primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
-    query_base = FEATURE_CLAUSE_RE.sub('', query_artist).strip()
-    query_tokens = simplify_name(query_base or query_artist).split()
+    query_base = setlist_lookup_name(query_artist)
+    raw_query_tokens = re.findall(r'[a-z0-9]+', query_artist.lower())
+    raw_primary_tokens = re.findall(r'[a-z0-9]+', primary_artist.lower())
+    if (
+        len(raw_query_tokens) == 1
+        and len(raw_primary_tokens) > 1
+        and raw_primary_tokens[0] in BLOCKED_PRIMARY_ARTIST_PREFIXES
+    ):
+        return False
+    query_tokens = simplify_name(query_base).split()
     primary_tokens = simplify_name(primary_artist).split()
     if len(query_tokens) == 1 and len(primary_tokens) > 1 and query_tokens[0] != primary_tokens[0]:
         return False
-    overlap = token_overlap(query_base or query_artist, primary_artist)
+    overlap = token_overlap(query_base, primary_artist)
     if len(query_tokens) > 1 and len(primary_tokens) > 1 and overlap <= 0.5:
         return False
     return overlap >= 0.45
@@ -685,9 +694,10 @@ def build_playlist(festival: Festival, user_id: str):
             errors.append(f'setlist lookup failed: {exc}')
 
         if len(selected) < 5:
-            for fallback_name in [query_artist, artist]:
+            fallback_names = list(dict.fromkeys([query_artist, artist]))
+            for fallback_name in fallback_names:
                 try:
-                    _, tracks = spotify_top_tracks(fallback_name, 8, artist_id=spotify_artist_id)
+                    _, tracks = spotify_top_tracks(fallback_name, 10, artist_id=spotify_artist_id)
                     for track in tracks:
                         artist_names = [a['name'] for a in track.get('artists', [])]
                         if max(token_overlap(query_artist, candidate) for candidate in artist_names) < 0.45:
