@@ -220,6 +220,17 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertEqual(ranked[0][2], 'Frequent Song')
 
+    def test_recent_setlists_treats_404_as_no_setlists(self):
+        response = playlists.requests.Response()
+        response.status_code = 404
+        error = playlists.requests.exceptions.HTTPError(response=response)
+
+        playlists.SETLIST_CACHE.clear()
+        with patch.object(playlists, 'PERSISTENT_SETLIST_CACHE', {}), \
+                patch.object(playlists, 'sl_get', side_effect=error):
+            self.assertEqual(playlists.recent_setlists('missing-mbid'), [])
+            self.assertEqual(playlists.SETLIST_CACHE['missing-mbid'], [])
+
     def test_live_word_inside_song_title_is_not_live_version(self):
         track = make_track(name='Live It Up', artists=['Example Artist'])
 

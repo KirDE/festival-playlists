@@ -354,7 +354,15 @@ def recent_setlists(mbid):
         result = PERSISTENT_SETLIST_CACHE[mbid]
         SETLIST_CACHE[mbid] = result
         return result
-    data = sl_get(f'https://api.setlist.fm/rest/1.0/artist/{mbid}/setlists', params={'p': 1})
+    try:
+        data = sl_get(f'https://api.setlist.fm/rest/1.0/artist/{mbid}/setlists', params={'p': 1})
+    except requests.exceptions.HTTPError as exc:
+        response = getattr(exc, 'response', None)
+        if response is not None and response.status_code == 404:
+            SETLIST_CACHE[mbid] = []
+            PERSISTENT_SETLIST_CACHE[mbid] = []
+            return []
+        raise
     setlists = data.get('setlist') or []
     if isinstance(setlists, dict):
         setlists = [setlists]
