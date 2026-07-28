@@ -19,6 +19,8 @@ REPORT_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR = Path('tmp/festival_playlists_cache')
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SETLIST_CACHE_FILE = CACHE_DIR / 'setlist_cache.json'
+CACHE_ONLY_SETLIST = os.environ.get('FESTIVAL_SETLIST_CACHE_ONLY') == '1'
+REPORT_ONLY = os.environ.get('FESTIVAL_REPORT_ONLY') == '1'
 
 SETLIST_HEADERS = {
     'Accept': 'application/json',
@@ -44,6 +46,7 @@ MBID_CACHE = {}
 SETLIST_CACHE = {}
 TRACK_SEARCH_CACHE = {}
 PERSISTENT_SETLIST_CACHE = json.loads(SETLIST_CACHE_FILE.read_text(encoding='utf-8')) if SETLIST_CACHE_FILE.exists() else {}
+PERSISTENT_MBID_CACHE = {}
 MIN_TRACK_MS = 90_000
 NON_SONG_TITLE_HINTS = {'intro', 'outro', 'interlude', 'overture'}
 STRICT_ARTIST_ONLY_FALLBACK = {'Tom Morello'}
@@ -92,6 +95,26 @@ class Festival:
     spotify_artist_ids: dict[str, str] | None = None
     mbids: dict[str, str] | None = None
     extra_excludes: set[str] | None = None
+
+
+def load_report_mbid_cache(report_dir: Path) -> dict[str, str]:
+    cache = {}
+    for path in report_dir.glob('*.json'):
+        try:
+            report = json.loads(path.read_text(encoding='utf-8')).get('report', [])
+        except (OSError, json.JSONDecodeError):
+            continue
+        for entry in report:
+            mbid = entry.get('mbid')
+            if not mbid:
+                continue
+            for key in (entry.get('query_artist'), entry.get('artist')):
+                if key and key not in cache:
+                    cache[key] = mbid
+    return cache
+
+
+PERSISTENT_MBID_CACHE.update(load_report_mbid_cache(REPORT_DIR))
 
 
 def sl_get(url, params=None, retries=4):
@@ -323,6 +346,12 @@ def fetch_impericon():
 def search_artist_mbid(name):
     if name in MBID_CACHE:
         return MBID_CACHE[name]
+    if CACHE_ONLY_SETLIST and name in PERSISTENT_MBID_CACHE:
+        MBID_CACHE[name] = PERSISTENT_MBID_CACHE[name]
+        return MBID_CACHE[name]
+    if CACHE_ONLY_SETLIST:
+        MBID_CACHE[name] = None
+        return None
     data = sl_get('https://api.setlist.fm/rest/1.0/search/artists', params={'artistName': name, 'p': 1, 'sort': 'relevance'})
     artists = data.get('artist') or []
     if isinstance(artists, dict):
@@ -354,6 +383,9 @@ def recent_setlists(mbid):
         result = PERSISTENT_SETLIST_CACHE[mbid]
         SETLIST_CACHE[mbid] = result
         return result
+    if CACHE_ONLY_SETLIST:
+        SETLIST_CACHE[mbid] = []
+        return []
     try:
         data = sl_get(f'https://api.setlist.fm/rest/1.0/artist/{mbid}/setlists', params={'p': 1})
     except requests.exceptions.HTTPError as exc:
@@ -762,7 +794,10 @@ def build_playlist(festival: Festival, user_id: str):
         })
         print(f'[{festival.key}] {artist}: {len(final_tracks)} tracks')
 
-    if festival.existing_playlist_id:
+    if REPORT_ONLY:
+        playlist_id = festival.existing_playlist_id or f'{festival.key}-report-only'
+        playlist_url = f'https://open.spotify.com/playlist/{playlist_id}' if festival.existing_playlist_id else ''
+    elif festival.existing_playlist_id:
         playlist_id = festival.existing_playlist_id
         update_playlist_details(playlist_id, festival.playlist_name, festival.description)
         playlist_replace_all(playlist_id, playlist_uris)
@@ -790,7 +825,8 @@ def build_playlist(festival: Festival, user_id: str):
 
 
 def main():
-    require_setlist_api_key()
+    if not CACHE_ONLY_SETLIST:
+        require_setlist_api_key()
     me = spotify_get('https://api.spotify.com/v1/me')
     festivals = [
         Festival(

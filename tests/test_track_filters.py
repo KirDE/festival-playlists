@@ -35,6 +35,24 @@ class TrackFilterTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'SETLIST_API_KEY is required'):
             module.require_setlist_api_key()
 
+    def test_cache_only_mbid_search_uses_saved_report_without_setlist_api(self):
+        playlists.MBID_CACHE.clear()
+        with patch.object(playlists, 'PERSISTENT_MBID_CACHE', {'Example Artist': 'cached-mbid'}), \
+                patch.object(playlists, 'CACHE_ONLY_SETLIST', True), \
+                patch.object(playlists, 'sl_get') as sl_get:
+            self.assertEqual(playlists.search_artist_mbid('Example Artist'), 'cached-mbid')
+
+        sl_get.assert_not_called()
+
+    def test_cache_only_mbid_search_skips_uncached_setlist_api(self):
+        playlists.MBID_CACHE.clear()
+        with patch.object(playlists, 'PERSISTENT_MBID_CACHE', {}), \
+                patch.object(playlists, 'CACHE_ONLY_SETLIST', True), \
+                patch.object(playlists, 'sl_get') as sl_get:
+            self.assertIsNone(playlists.search_artist_mbid('Missing Artist'))
+
+        sl_get.assert_not_called()
+
     def test_skips_tracks_where_lineup_artist_is_only_featured(self):
         track = make_track(artists=['Kontra K', 'Anna Grey'])
 
@@ -208,6 +226,39 @@ class TrackFilterTest(unittest.TestCase):
                 playlists.build_playlist(festival, 'user-id')
 
         top_tracks.assert_called_once_with('Example Artist', 10, artist_id=None)
+
+    def test_report_only_build_does_not_mutate_spotify_playlist(self):
+        festival = playlists.Festival(
+            key='report_only_test',
+            display_name='Report Only Test',
+            playlist_name='Report Only Test',
+            description='Report Only Test',
+            lineup_fn=lambda: (['Example Artist'], []),
+            existing_playlist_id='playlist-id',
+        )
+        track = make_track(name='Song 1', artists=['Example Artist'])
+        track['uri'] = 'spotify:track:1'
+        tracks = [track]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_dir = Path(tmpdir) / 'reports'
+            cache_file = Path(tmpdir) / 'cache' / 'setlist_cache.json'
+            report_dir.mkdir(parents=True)
+            cache_file.parent.mkdir(parents=True)
+
+            with patch.object(playlists, 'REPORT_ONLY', True), \
+                    patch.object(playlists, 'REPORT_DIR', report_dir), \
+                    patch.object(playlists, 'SETLIST_CACHE_FILE', cache_file), \
+                    patch.object(playlists, 'search_artist_mbid', return_value=None), \
+                    patch.object(playlists, 'get_followers', return_value=1), \
+                    patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, tracks)), \
+                    patch.object(playlists, 'update_playlist_details') as update_details, \
+                    patch.object(playlists, 'playlist_replace_all') as replace_all, \
+                    patch('builtins.print'):
+                playlists.build_playlist(festival, 'user-id')
+
+        update_details.assert_not_called()
+        replace_all.assert_not_called()
 
     def test_setlist_tracks_sort_by_recent_plays_before_spotify_popularity(self):
         frequent = make_track(name='Frequent Song')
