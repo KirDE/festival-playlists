@@ -246,6 +246,14 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(playlists.track_version_penalty(track), 0)
         self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', track))
 
+    def test_cover_marker_is_rejected_but_recovery_is_not(self):
+        cover = make_track(name='Clean Song - Cover', artists=['Example Artist'])
+        recovery = make_track(name='Recovery', artists=['Example Artist'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', cover), 'bad_version')
+        self.assertEqual(playlists.track_version_penalty(recovery), 0)
+        self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', recovery))
+
     def test_wacken_excludes_non_band_listing_entries(self):
         festival = playlists.Festival(
             key='wacken_test',
