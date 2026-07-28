@@ -51,6 +51,9 @@ LIVE_REPERTOIRE_PRIMARY_ARTISTS = {
     'Tom Morello': {'Tom Morello', 'Rage Against The Machine', 'Audioslave', 'Prophets Of Rage'},
 }
 BLOCKED_PRIMARY_ARTIST_PREFIXES = {'of'}
+BLOCKED_PRIMARY_ARTIST_MATCHES = {
+    'Phantom': {'Phantom Planet'},
+}
 RECENT_SETLIST_DAYS = 365
 FEATURE_CLAUSE_RE = re.compile(r'(?:[-(\[]\s*)?\b(feat|featuring|ft)\b.*$', re.I)
 GRASPOP_DAYS = ('thursday', 'friday', 'saturday', 'sunday')
@@ -452,6 +455,9 @@ def primary_artist_matches_query(query_artist: str, track: dict) -> bool:
     if live_repertoire_primary_match(query_artist, track):
         return True
     primary_artist = track['artists'][0]['name'] if track.get('artists') else ''
+    blocked_artists = BLOCKED_PRIMARY_ARTIST_MATCHES.get(query_artist, set())
+    if simplify_name(primary_artist) in {simplify_name(artist) for artist in blocked_artists}:
+        return False
     query_base = setlist_lookup_name(query_artist)
     raw_query_tokens = re.findall(r'[a-z0-9]+', query_artist.lower())
     raw_primary_tokens = re.findall(r'[a-z0-9]+', primary_artist.lower())

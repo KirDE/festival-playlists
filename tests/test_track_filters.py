@@ -55,6 +55,11 @@ class TrackFilterTest(unittest.TestCase):
 
         self.assertIsNone(playlists.should_skip_track_for_artist('Cavalera', track))
 
+    def test_blocks_known_bad_primary_artist_prefix_match(self):
+        track = make_track(artists=['Phantom Planet'])
+
+        self.assertEqual(playlists.should_skip_track_for_artist('Phantom', track), 'primary_artist_mismatch')
+
     def test_skips_single_token_artist_as_secondary_primary_token(self):
         track = make_track(artists=['Sub Focus'])
 
