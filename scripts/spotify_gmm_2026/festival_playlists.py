@@ -155,6 +155,15 @@ def retry_wait_seconds(response, fallback: float) -> float:
     return min(wait, MAX_RETRY_AFTER_SECONDS)
 
 
+def selected_artist_keys() -> set[str]:
+    selected = os.environ.get('FESTIVAL_ARTISTS', '')
+    return {simplify_name(item.strip()) for item in selected.split(',') if item.strip()}
+
+
+def artist_matches_selected(name: str, query_name: str, selected_keys: set[str]) -> bool:
+    return simplify_name(name) in selected_keys or simplify_name(query_name) in selected_keys
+
+
 def _spotify_request(method, url, *, params=None, payload=None, retries=6):
     for attempt in range(retries + 1):
         headers = auth_headers()
@@ -695,6 +704,11 @@ def build_playlist(festival: Festival, user_id: str):
     aliases = festival.aliases or {}
     spotify_artist_ids = festival.spotify_artist_ids or {}
     artists = [a for a in artists_raw if not should_exclude(a, festival)]
+    selected_keys = selected_artist_keys()
+    if selected_keys:
+        if not REPORT_ONLY:
+            raise RuntimeError('FESTIVAL_ARTISTS can only be used with FESTIVAL_REPORT_ONLY=1')
+        artists = [a for a in artists if artist_matches_selected(a, aliases.get(a, a), selected_keys)]
     if not artists:
         raise RuntimeError(f'{festival.key}: lineup is empty; refusing to overwrite playlist')
     fast_sort = os.environ.get('FESTIVAL_FAST_SORT') == '1'
@@ -839,9 +853,34 @@ def build_playlist(festival: Festival, user_id: str):
         existing = json.loads(report_path.read_text(encoding='utf-8'))
         if existing.get('track_count', 0) > 0:
             raise RuntimeError(f'refusing to overwrite non-empty report with zero tracks: {report_path}')
+    if REPORT_ONLY and selected_keys and report_path.exists():
+        existing = json.loads(report_path.read_text(encoding='utf-8'))
+        updated = {simplify_name(entry['artist']): entry for entry in report}
+        merged_report = []
+        seen = set()
+        for entry in existing.get('report', []):
+            key = simplify_name(entry.get('artist', ''))
+            if key in updated:
+                merged_report.append(updated[key])
+                seen.add(key)
+            else:
+                merged_report.append(entry)
+        for entry in report:
+            key = simplify_name(entry['artist'])
+            if key not in seen:
+                merged_report.append(entry)
+        existing['report'] = merged_report
+        existing['track_count'] = sum(entry.get('count', len(entry.get('tracks', []))) for entry in merged_report)
+        existing['artists_count'] = len(merged_report)
+        output = existing
     report_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding='utf-8')
     SETLIST_CACHE_FILE.write_text(json.dumps(PERSISTENT_SETLIST_CACHE, ensure_ascii=False), encoding='utf-8')
-    print(json.dumps({'festival': festival.key, 'playlist_url': playlist_url, 'track_count': len(playlist_uris), 'artists_count': len(ordered_artists)}))
+    print(json.dumps({
+        'festival': festival.key,
+        'playlist_url': output['playlist_url'],
+        'track_count': output['track_count'],
+        'artists_count': output['artists_count'],
+    }))
 
 
 def main():

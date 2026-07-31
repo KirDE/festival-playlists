@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -257,6 +258,75 @@ class TrackFilterTest(unittest.TestCase):
                     patch('builtins.print'):
                 playlists.build_playlist(festival, 'user-id')
 
+        update_details.assert_not_called()
+        replace_all.assert_not_called()
+
+    def test_selected_artists_require_report_only_mode(self):
+        festival = playlists.Festival(
+            key='selected_artist_test',
+            display_name='Selected Artist Test',
+            playlist_name='Selected Artist Test',
+            description='Selected Artist Test',
+            lineup_fn=lambda: (['Example Artist'], []),
+            existing_playlist_id='playlist-id',
+        )
+
+        with patch.dict(os.environ, {'FESTIVAL_ARTISTS': 'Example Artist'}), \
+                patch.object(playlists, 'REPORT_ONLY', False):
+            with self.assertRaisesRegex(RuntimeError, 'FESTIVAL_ARTISTS can only be used'):
+                playlists.build_playlist(festival, 'user-id')
+
+    def test_report_only_selected_artists_merge_existing_report(self):
+        festival = playlists.Festival(
+            key='selected_artist_merge_test',
+            display_name='Selected Artist Merge Test',
+            playlist_name='Selected Artist Merge Test',
+            description='Selected Artist Merge Test',
+            lineup_fn=lambda: (['Example Artist', 'Other Artist'], []),
+            existing_playlist_id='playlist-id',
+        )
+        replacement = make_track(name='Replacement Song', artists=['Example Artist'])
+        replacement['uri'] = 'spotify:track:replacement'
+        existing_report = {
+            'festival': 'Selected Artist Merge Test',
+            'playlist_name': 'Selected Artist Merge Test',
+            'playlist_id': 'playlist-id',
+            'playlist_url': 'https://open.spotify.com/playlist/playlist-id',
+            'track_count': 10,
+            'artists_count': 2,
+            'headliners': [],
+            'report': [
+                {'artist': 'Example Artist', 'query_artist': 'Example Artist', 'count': 5, 'tracks': ['old']},
+                {'artist': 'Other Artist', 'query_artist': 'Other Artist', 'count': 5, 'tracks': ['kept']},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_dir = Path(tmpdir) / 'reports'
+            cache_file = Path(tmpdir) / 'cache' / 'setlist_cache.json'
+            report_dir.mkdir(parents=True)
+            cache_file.parent.mkdir(parents=True)
+            report_path = report_dir / 'selected_artist_merge_test.json'
+            report_path.write_text(json.dumps(existing_report), encoding='utf-8')
+
+            with patch.dict(os.environ, {'FESTIVAL_ARTISTS': 'Example Artist'}), \
+                    patch.object(playlists, 'REPORT_ONLY', True), \
+                    patch.object(playlists, 'REPORT_DIR', report_dir), \
+                    patch.object(playlists, 'SETLIST_CACHE_FILE', cache_file), \
+                    patch.object(playlists, 'search_artist_mbid', return_value=None), \
+                    patch.object(playlists, 'get_followers', return_value=1), \
+                    patch.object(playlists, 'spotify_top_tracks', return_value=({'id': 'artist-id'}, [replacement])), \
+                    patch.object(playlists, 'update_playlist_details') as update_details, \
+                    patch.object(playlists, 'playlist_replace_all') as replace_all, \
+                    patch('builtins.print'):
+                playlists.build_playlist(festival, 'user-id')
+
+            merged = json.loads(report_path.read_text(encoding='utf-8'))
+
+        self.assertEqual(merged['track_count'], 6)
+        self.assertEqual(merged['artists_count'], 2)
+        self.assertEqual(merged['report'][0]['tracks'], ['Example Artist - Replacement Song'])
+        self.assertEqual(merged['report'][1]['tracks'], ['kept'])
         update_details.assert_not_called()
         replace_all.assert_not_called()
 
