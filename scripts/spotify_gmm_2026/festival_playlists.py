@@ -30,6 +30,7 @@ if SETLIST_API_KEY:
     SETLIST_HEADERS['x-api-key'] = SETLIST_API_KEY
 RATE_LIMIT_SECONDS = 1.05
 SETLIST_RETRY_CODES = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER_SECONDS = float(os.environ.get('FESTIVAL_MAX_RETRY_AFTER_SECONDS', '60'))
 _last_setlist_call = 0.0
 
 GLOBAL_EXCLUDES = {
@@ -132,8 +133,7 @@ def sl_get(url, params=None, retries=4):
         response = requests.get(url, headers=SETLIST_HEADERS, params=params, timeout=30)
         _last_setlist_call = time.time()
         if response.status_code in SETLIST_RETRY_CODES and attempt < retries:
-            retry_after = response.headers.get('Retry-After')
-            wait = float(retry_after) if retry_after and retry_after.isdigit() else max(5, 2 ** attempt)
+            wait = retry_wait_seconds(response, max(5, 2 ** attempt))
             time.sleep(max(wait, RATE_LIMIT_SECONDS))
             attempt += 1
             continue
@@ -144,6 +144,15 @@ def sl_get(url, params=None, retries=4):
 def require_setlist_api_key():
     if not SETLIST_API_KEY:
         raise RuntimeError('SETLIST_API_KEY is required to fetch live setlist.fm data before regenerating festival playlists')
+
+
+def retry_wait_seconds(response, fallback: float) -> float:
+    retry_after = response.headers.get('Retry-After')
+    try:
+        wait = float(retry_after) if retry_after else fallback
+    except ValueError:
+        wait = fallback
+    return min(wait, MAX_RETRY_AFTER_SECONDS)
 
 
 def _spotify_request(method, url, *, params=None, payload=None, retries=6):
@@ -163,8 +172,7 @@ def _spotify_request(method, url, *, params=None, payload=None, retries=6):
             continue
         if response.status_code in {500, 502, 503, 504, 429}:
             if attempt < retries:
-                retry_after = response.headers.get('Retry-After')
-                wait = float(retry_after) if retry_after and retry_after.isdigit() else max(10, 2 ** attempt)
+                wait = retry_wait_seconds(response, max(10, 2 ** attempt))
                 time.sleep(wait)
                 continue
             else:

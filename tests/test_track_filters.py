@@ -260,6 +260,18 @@ class TrackFilterTest(unittest.TestCase):
         update_details.assert_not_called()
         replace_all.assert_not_called()
 
+    def test_retry_after_wait_is_capped(self):
+        response = playlists.requests.Response()
+        response.headers['Retry-After'] = '9999'
+
+        self.assertEqual(playlists.retry_wait_seconds(response, 10), playlists.MAX_RETRY_AFTER_SECONDS)
+
+    def test_retry_after_invalid_value_uses_fallback(self):
+        response = playlists.requests.Response()
+        response.headers['Retry-After'] = 'soon'
+
+        self.assertEqual(playlists.retry_wait_seconds(response, 10), 10)
+
     def test_setlist_tracks_sort_by_recent_plays_before_spotify_popularity(self):
         frequent = make_track(name='Frequent Song')
         popular = make_track(name='Popular Song')
