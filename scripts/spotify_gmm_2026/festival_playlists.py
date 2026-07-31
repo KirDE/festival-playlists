@@ -49,6 +49,9 @@ PERSISTENT_SETLIST_CACHE = json.loads(SETLIST_CACHE_FILE.read_text(encoding='utf
 PERSISTENT_MBID_CACHE = {}
 MIN_TRACK_MS = 90_000
 NON_SONG_TITLE_HINTS = {'intro', 'outro', 'interlude', 'overture'}
+BAD_VERSION_DESCRIPTOR_HINTS = {
+    'karaoke', 'orchestral', 'piano', 'queen alien', 'saltatio mortis', 'unplugged',
+}
 STRICT_ARTIST_ONLY_FALLBACK = {'Tom Morello'}
 LIVE_REPERTOIRE_PRIMARY_ARTISTS = {
     'Tom Morello': {'Tom Morello', 'Rage Against The Machine', 'Audioslave', 'Prophets Of Rage'},
@@ -309,6 +312,7 @@ def fetch_wacken():
     artists = []
     for item in data:
         name = clean_name(item['artist']['title'])
+        name = re.sub(r'^Out\s+Of\s+The\s+Cage\s+-\s+', '', name, flags=re.I)
         if name and name not in artists:
             artists.append(name)
     manual_headliners = [
@@ -436,6 +440,7 @@ def extract_recent_songs(setlists):
 
 def canonical_track_key(name: str) -> str:
     name = FEATURE_CLAUSE_RE.sub('', name).strip()
+    name = re.sub(r'\s*(?:[-(\[]\s*)?(?:\d{4}\s+)?remaster(?:ed)?\s*[)\]]?$', '', name, flags=re.I)
     simplified = simplify_name(name)
     if simplified:
         return simplified
@@ -455,7 +460,7 @@ def is_short_or_non_song(track: dict) -> bool:
     if duration < MIN_TRACK_MS:
         return True
     title = (track.get('name') or '').lower()
-    return any(hint in title for hint in NON_SONG_TITLE_HINTS)
+    return any(re.search(rf'(^|[\s(:\[-]){re.escape(hint)}($|[\s:)\]-])', title) for hint in NON_SONG_TITLE_HINTS)
 
 
 def track_version_penalty(track: dict) -> int:
@@ -468,6 +473,8 @@ def track_version_penalty(track: dict) -> int:
     if re.search(r'(\(|\[|-)\s*(radio\s+)?edit\b', title):
         penalty += 2
     if re.search(r'(\(|\[|-)\s*(radio|extended|reworked)\s+version\b', title):
+        penalty += 2
+    if 'version' in title and any(hint in title for hint in BAD_VERSION_DESCRIPTOR_HINTS):
         penalty += 2
     return penalty
 
@@ -819,7 +826,12 @@ def build_playlist(festival: Festival, user_id: str):
         'headliners': headliners,
         'report': report,
     }
-    (REPORT_DIR / f'{festival.key}.json').write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding='utf-8')
+    report_path = REPORT_DIR / f'{festival.key}.json'
+    if REPORT_ONLY and not playlist_uris and report_path.exists():
+        existing = json.loads(report_path.read_text(encoding='utf-8'))
+        if existing.get('track_count', 0) > 0:
+            raise RuntimeError(f'refusing to overwrite non-empty report with zero tracks: {report_path}')
+    report_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding='utf-8')
     SETLIST_CACHE_FILE.write_text(json.dumps(PERSISTENT_SETLIST_CACHE, ensure_ascii=False), encoding='utf-8')
     print(json.dumps({'festival': festival.key, 'playlist_url': playlist_url, 'track_count': len(playlist_uris), 'artists_count': len(ordered_artists)}))
 
@@ -827,7 +839,6 @@ def build_playlist(festival: Festival, user_id: str):
 def main():
     if not CACHE_ONLY_SETLIST:
         require_setlist_api_key()
-    me = spotify_get('https://api.spotify.com/v1/me')
     festivals = [
         Festival(
             key='graspop_2026',
@@ -857,7 +868,29 @@ def main():
             description='Listen to all bands from Wacken Open Air 2026.',
             lineup_fn=fetch_wacken,
             existing_playlist_id='5TWytVVqnSFQw6eVdhBIK6',
-            aliases={'Lamb of God': 'Lamb Of God', 'Heaven Shall Burn': 'Heaven Shall Burn', 'Of Mice and Men': 'Of Mice & Men', 'Dieter "Maschine" Birr': 'Dieter "Maschine" Birr', 'Novelization': 'Novelization'},
+            aliases={
+                'Born Broken': 'BornBroken',
+                'Force': 'FORCE',
+                'Jäst': 'JÄST',
+                'Lamb of God': 'Lamb Of God',
+                'Heaven Shall Burn': 'Heaven Shall Burn',
+                'Mac Cabe & Kanaka': 'MacCabe & Kanaka',
+                'Of Mice and Men': 'Of Mice & Men',
+                'Phantom': 'Phantom G.D.L',
+                'Dieter "Maschine" Birr': 'Dieter "Maschine" Birr',
+                'Novelization': 'Novelization',
+            },
+            spotify_artist_ids={
+                'Born Broken': '1eK0MDcJMrahfqgCjlPEzl',
+                'Force': '527C8v9EOKmi9W2tApAIag',
+                'Gidora': '4cJUKhSNedofM9UgiAMl3L',
+                'Haine': '4SH9v6X1z8BEOL1E2JLgYd',
+                'Jäst': '3pejAqOcOsnG28IwNshhFk',
+                'Mac Cabe & Kanaka': '6Ds9FJPSEtOzl9s2vRWX2A',
+                'Novelization': '3poazkVxpS4USWiABaOBAZ',
+                'Phantom': '6f9WeAPRDSevpjBAyGfVmV',
+                'SÓT': '6Nc1Qeqwnbi0odTnFc0Lua',
+            },
             extra_excludes={
                 'Maschine\'s Late Night Show', 'Wacken Firefighters', 'Cowgirls From Hell',
                 'Blood Fire Death', 'Electric Bassboy', 'Kay Ray', 'Metal Karate', 'Bastian Zach',
@@ -867,6 +900,7 @@ def main():
                 'Acoustic Guerillas feat Ellerbek Pussyboys', 'Acoustic Steel',
                 'Lesung: Maxim Matthew "Frøstfǽdrin- Der Ruf des weißen Greifen"', 'Metal Battle tba.',
                 'System of a Down by Anett & Livi Acoustic + Radó Éden', 'Tribute2Wacken', 'Wildcover',
+                'Alien Rockin Explosion', 'Kalle 4 World Leader', 'Sir Henry Hot', 'Telekom Wacken Cup',
             },
         ),
         Festival(
@@ -898,8 +932,9 @@ def main():
     if selected:
         allowed = {item.strip() for item in selected.split(',') if item.strip()}
         festivals = [festival for festival in festivals if festival.key in allowed]
+    user_id = '' if REPORT_ONLY else spotify_get('https://api.spotify.com/v1/me')['id']
     for festival in festivals:
-        build_playlist(festival, me['id'])
+        build_playlist(festival, user_id)
 
 
 if __name__ == '__main__':

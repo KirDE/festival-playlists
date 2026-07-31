@@ -313,6 +313,17 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(playlists.track_version_penalty(track), 0)
         self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', track))
 
+    def test_bad_descriptor_versions_are_rejected(self):
+        tracks = [
+            make_track(name='Clean Song - Piano Version', artists=['Example Artist']),
+            make_track(name='Clean Song - Saltatio Mortis Version', artists=['Example Artist']),
+            make_track(name='Clean Song - Unplugged Version', artists=['Example Artist']),
+        ]
+
+        for track in tracks:
+            with self.subTest(track=track['name']):
+                self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', track), 'bad_version')
+
     def test_cover_marker_is_rejected_but_recovery_is_not(self):
         cover = make_track(name='Clean Song - Cover', artists=['Example Artist'])
         recovery = make_track(name='Recovery', artists=['Example Artist'])
@@ -320,6 +331,32 @@ class TrackFilterTest(unittest.TestCase):
         self.assertEqual(playlists.should_skip_track_for_artist('Example Artist', cover), 'bad_version')
         self.assertEqual(playlists.track_version_penalty(recovery), 0)
         self.assertIsNone(playlists.should_skip_track_for_artist('Example Artist', recovery))
+
+    def test_intro_word_inside_title_is_not_rejected(self):
+        track = make_track(name='The Introspection Song', artists=['Example Artist'])
+
+        self.assertFalse(playlists.is_short_or_non_song(track))
+
+    def test_intro_marker_is_rejected(self):
+        track = make_track(name='Intro: The Beginning', artists=['Example Artist'])
+
+        self.assertTrue(playlists.is_short_or_non_song(track))
+
+    def test_remaster_suffix_deduplicates_with_original_title(self):
+        self.assertEqual(
+            playlists.canonical_track_key('Fear of the Dark - 2015 Remaster'),
+            playlists.canonical_track_key('Fear of the Dark'),
+        )
+
+    def test_fetch_wacken_strips_out_of_the_cage_prefix(self):
+        class Response:
+            def json(self):
+                return [{'artist': {'title': 'Out Of The Cage - Example Band'}}]
+
+        with patch.object(playlists.requests, 'get', return_value=Response()):
+            artists, _ = playlists.fetch_wacken()
+
+        self.assertEqual(artists, ['Example Band'])
 
     def test_wacken_excludes_non_band_listing_entries(self):
         festival = playlists.Festival(
