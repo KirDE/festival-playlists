@@ -7,6 +7,7 @@ import time
 import unicodedata
 from pathlib import Path
 
+import requests
 from festival_playlists import (
     canonical_track_key,
     is_feat_track,
@@ -132,6 +133,149 @@ def load_ytmusic(auth_path: Path | None = None, credentials_path: Path = DEFAULT
     return YTMusic()
 
 
+def youtube_data_api_headers(credentials_path: Path, oauth_path: Path) -> dict[str, str]:
+    from ytmusicapi.auth.oauth.credentials import OAuthCredentials
+
+    credentials = load_json(credentials_path, {})
+    token_path = Path(oauth_path)
+    token = load_json(token_path, {})
+    if token.get('expires_at', 0) - int(time.time()) < 60:
+        oauth_credentials = OAuthCredentials(credentials['client_id'], credentials['client_secret'])
+        fresh = oauth_credentials.refresh_token(token['refresh_token'])
+        token.update({
+            'access_token': fresh['access_token'],
+            'expires_at': int(time.time()) + fresh['expires_in'],
+            'expires_in': fresh['expires_in'],
+        })
+        save_json(token_path, token)
+        token_path.chmod(0o600)
+    return {
+        'Authorization': f"Bearer {token['access_token']}",
+        'Accept': 'application/json',
+    }
+
+
+def youtube_data_api_request(method: str, url: str, *, headers: dict[str, str], params: dict, body: dict) -> dict:
+    response = requests.request(method, url, params=params, headers=headers, json=body, timeout=30)
+    data = response.json()
+    if response.status_code >= 400:
+        error = data.get('error', {})
+        raise RuntimeError(f"YouTube Data API failed: {response.status_code} {error.get('message')}")
+    return data
+
+
+def create_youtube_playlist(credentials_path: Path, oauth_path: Path, title: str, description: str) -> str:
+    data = youtube_data_api_request(
+        'POST',
+        'https://www.googleapis.com/youtube/v3/playlists',
+        headers=youtube_data_api_headers(credentials_path, oauth_path),
+        params={'part': 'snippet,status'},
+        body={
+            'snippet': {'title': title, 'description': description},
+            'status': {'privacyStatus': 'public'},
+        },
+    )
+    return data['id']
+
+
+def update_youtube_playlist(credentials_path: Path, oauth_path: Path, playlist_id: str, title: str, description: str) -> None:
+    youtube_data_api_request(
+        'PUT',
+        'https://www.googleapis.com/youtube/v3/playlists',
+        headers=youtube_data_api_headers(credentials_path, oauth_path),
+        params={'part': 'snippet,status'},
+        body={
+            'id': playlist_id,
+            'snippet': {'title': title, 'description': description},
+            'status': {'privacyStatus': 'public'},
+        },
+    )
+
+
+def list_youtube_playlist_items(credentials_path: Path, oauth_path: Path, playlist_id: str) -> list[dict]:
+    headers = youtube_data_api_headers(credentials_path, oauth_path)
+    items = []
+    page_token = ''
+    while True:
+        params = {
+            'part': 'id,snippet',
+            'playlistId': playlist_id,
+            'maxResults': 50,
+        }
+        if page_token:
+            params['pageToken'] = page_token
+        response = requests.get(
+            'https://www.googleapis.com/youtube/v3/playlistItems',
+            params=params,
+            headers=headers,
+            timeout=30,
+        )
+        data = response.json()
+        if response.status_code >= 400:
+            error = data.get('error', {})
+            raise RuntimeError(f"YouTube Data API failed: {response.status_code} {error.get('message')}")
+        items.extend(data.get('items', []))
+        page_token = data.get('nextPageToken') or ''
+        if not page_token:
+            return items
+
+
+def delete_youtube_playlist_item(credentials_path: Path, oauth_path: Path, item_id: str) -> None:
+    response = requests.delete(
+        'https://www.googleapis.com/youtube/v3/playlistItems',
+        params={'id': item_id},
+        headers=youtube_data_api_headers(credentials_path, oauth_path),
+        timeout=30,
+    )
+    if response.status_code not in (200, 204):
+        data = response.json()
+        error = data.get('error', {})
+        raise RuntimeError(f"YouTube Data API failed: {response.status_code} {error.get('message')}")
+
+
+def add_youtube_playlist_item(credentials_path: Path, oauth_path: Path, playlist_id: str, video_id: str, position: int) -> None:
+    youtube_data_api_request(
+        'POST',
+        'https://www.googleapis.com/youtube/v3/playlistItems',
+        headers=youtube_data_api_headers(credentials_path, oauth_path),
+        params={'part': 'snippet'},
+        body={
+            'snippet': {
+                'playlistId': playlist_id,
+                'position': position,
+                'resourceId': {'kind': 'youtube#video', 'videoId': video_id},
+            },
+        },
+    )
+
+
+def sync_youtube_playlist_items(
+    credentials_path: Path,
+    oauth_path: Path,
+    playlist_id: str,
+    video_ids: list[str],
+    *,
+    resume: bool,
+) -> None:
+    current = list_youtube_playlist_items(credentials_path, oauth_path, playlist_id)
+    existing_video_ids = [
+        item.get('snippet', {}).get('resourceId', {}).get('videoId')
+        for item in current
+        if item.get('snippet', {}).get('resourceId', {}).get('videoId')
+    ]
+    if resume:
+        queued = [video_id for video_id in video_ids if video_id not in set(existing_video_ids)]
+        start_position = len(existing_video_ids)
+    else:
+        for item in current:
+            delete_youtube_playlist_item(credentials_path, oauth_path, item['id'])
+        queued = video_ids
+        start_position = 0
+
+    for index, video_id in enumerate(queued, start_position):
+        add_youtube_playlist_item(credentials_path, oauth_path, playlist_id, video_id, index)
+
+
 def search_youtube_track(ytmusic, query: dict, cache: dict, *, pause_seconds: float = 0.0) -> dict | None:
     cache_key = f"{SEARCH_CACHE_VERSION}:{query['artist']} - {query['title']}"
     cached = cache.get(cache_key)
@@ -182,16 +326,22 @@ def replace_playlist_items(ytmusic, playlist_id: str, video_ids: list[str]) -> N
         ytmusic.add_playlist_items(playlist_id, video_ids[idx:idx + 100], duplicates=False)
 
 
-def publish_playlist(ytmusic, source_report: dict, video_ids: list[str], playlist_id: str | None) -> tuple[str, str]:
+def publish_playlist(
+    source_report: dict,
+    video_ids: list[str],
+    playlist_id: str | None,
+    credentials_path: Path,
+    oauth_path: Path,
+    *,
+    resume: bool,
+) -> tuple[str, str]:
     title = source_report['playlist_name']
     description = 'Listen to all bands from Summer Breeze 2026.'
     if playlist_id:
-        ytmusic.edit_playlist(playlist_id, title=title, description=description, privacyStatus='PUBLIC')
-        replace_playlist_items(ytmusic, playlist_id, video_ids)
+        update_youtube_playlist(credentials_path, oauth_path, playlist_id, title, description)
     else:
-        playlist_id = ytmusic.create_playlist(title, description, privacy_status='PUBLIC', video_ids=video_ids[:100])
-        for idx in range(100, len(video_ids), 100):
-            ytmusic.add_playlist_items(playlist_id, video_ids[idx:idx + 100], duplicates=False)
+        playlist_id = create_youtube_playlist(credentials_path, oauth_path, title, description)
+    sync_youtube_playlist_items(credentials_path, oauth_path, playlist_id, video_ids, resume=resume)
     return playlist_id, f'https://music.youtube.com/playlist?list={playlist_id}'
 
 
@@ -235,6 +385,7 @@ def main() -> int:
     parser.add_argument('--oauth', default=str(DEFAULT_OAUTH))
     parser.add_argument('--playlist-id', default=os.environ.get('YOUTUBE_MUSIC_PLAYLIST_ID', ''))
     parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--resume-publish', action='store_true')
     parser.add_argument('--pause-seconds', type=float, default=0.0)
     args = parser.parse_args()
 
@@ -281,10 +432,12 @@ def main() -> int:
     playlist_url = ''
     if args.publish:
         playlist_id, playlist_url = publish_playlist(
-            ytmusic,
             source_report,
             [item['videoId'] for item in matched],
             args.playlist_id or None,
+            Path(args.credentials),
+            Path(args.oauth),
+            resume=args.resume_publish,
         )
 
     output = build_youtube_report(source_report, source_tracks, matched, missing, playlist_id, playlist_url)
