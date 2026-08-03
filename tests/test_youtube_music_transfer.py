@@ -8,6 +8,7 @@ os.environ.setdefault('SETLIST_API_KEY', 'test')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'spotify_gmm_2026'))
 
 import youtube_music_transfer as transfer
+import youtube_music_auto_resume as auto_resume
 
 
 class YouTubeMusicTransferTest(unittest.TestCase):
@@ -176,6 +177,38 @@ class YouTubeMusicTransferTest(unittest.TestCase):
         self.assertEqual(summary['metadata_quota_units'], 0)
         self.assertEqual(summary['estimated_total_write_quota_units'], 50)
         self.assertEqual(summary['estimated_total_quota_units'], 51)
+
+    def test_auto_resume_detects_quota_errors(self):
+        self.assertTrue(auto_resume.is_quota_error(RuntimeError('quotaExceeded')))
+        self.assertTrue(auto_resume.is_quota_error(RuntimeError('Quota exceeded')))
+        self.assertFalse(auto_resume.is_quota_error(RuntimeError('invalid playlist id')))
+
+    def test_auto_resume_reports_quota_wait_from_transfer_failure(self):
+        args = mock.Mock(
+            playlist_id='playlist-id',
+            credentials=Path('credentials.json'),
+            oauth=Path('oauth.json'),
+            report=Path('report.json'),
+            output=Path('output.json'),
+            cache=Path('cache.json'),
+            max_new_items=190,
+            pause_seconds=0,
+        )
+        completed = subprocess_result(
+            returncode=1,
+            stdout='',
+            stderr='RuntimeError: YouTube Data API failed: 403 quotaExceeded',
+        )
+
+        with mock.patch.object(auto_resume.subprocess, 'run', return_value=completed):
+            result = auto_resume.run_transfer(args)
+
+        self.assertEqual(result['step'], 'publish')
+        self.assertEqual(result['status'], 'quota_wait')
+
+
+def subprocess_result(returncode: int, stdout: str, stderr: str):
+    return mock.Mock(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 if __name__ == '__main__':
