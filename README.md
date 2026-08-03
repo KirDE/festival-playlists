@@ -1,12 +1,14 @@
 # Festival Playlists
 
-Scripts for building Spotify playlists for metal festivals from festival lineups, recent setlist.fm songs, and Spotify popularity.
+Scripts for building festival playlists for metal festivals from festival lineups, recent setlist.fm songs, and streaming-platform catalog matches.
 
 ## Main scripts
 
 - `scripts/spotify_gmm_2026/festival_playlists.py` - current playlist builder for Graspop, Wacken, Rock im Park, Summer Breeze, and Impericon.
 - `scripts/spotify_gmm_2026/spotify_auth.py` - Spotify OAuth token loading and refresh.
 - `scripts/spotify_gmm_2026/init_spotify_auth.py` - exchanges a Spotify callback `code` for local tokens or refreshes the token file.
+- `scripts/spotify_gmm_2026/init_youtube_music_auth.py` - starts YouTube Music OAuth device-flow and saves local tokens.
+- `scripts/spotify_gmm_2026/youtube_music_transfer.py` - transfers a generated festival report to YouTube Music.
 
 ## Setup
 
@@ -43,3 +45,41 @@ python3 scripts/spotify_gmm_2026/festival_playlists.py
 ```
 
 Reports are written to `outputs/festival_playlists/`.
+
+## Transfer to YouTube Music
+
+YouTube Music credentials are read from `/home/openclaw/.openclaw/credentials/youtube-music.json` by default:
+
+```json
+{
+  "api_key": "...",
+  "client_id": "...",
+  "client_secret": "..."
+}
+```
+
+Use an OAuth client of type `TVs and Limited Input devices` from a project where YouTube Data API v3 is enabled. Then start device-flow auth:
+
+```bash
+python3 scripts/spotify_gmm_2026/init_youtube_music_auth.py
+```
+
+The token is saved privately to `/home/openclaw/.openclaw/credentials/youtube-music-oauth.json`.
+
+Dry-run the Summer Breeze transfer and write an audit report:
+
+```bash
+python3 scripts/spotify_gmm_2026/youtube_music_transfer.py
+```
+
+Publish a new YouTube Music playlist after OAuth is ready:
+
+```bash
+python3 scripts/spotify_gmm_2026/youtube_music_transfer.py --publish
+```
+
+Replace an existing YouTube Music playlist:
+
+```bash
+YOUTUBE_MUSIC_PLAYLIST_ID=... python3 scripts/spotify_gmm_2026/youtube_music_transfer.py --publish
+```
