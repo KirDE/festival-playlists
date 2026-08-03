@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault('SETLIST_API_KEY', 'test')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'spotify_gmm_2026'))
@@ -107,6 +108,74 @@ class YouTubeMusicTransferTest(unittest.TestCase):
         self.assertEqual(report['missing_track_count'], 1)
         self.assertEqual(report['duplicate_video_ids'], ['same'])
         self.assertEqual(report['duplicate_song_keys'], ['B - Song'])
+
+    def test_sync_resume_caps_new_items_and_reports_remaining(self):
+        current = [
+            {'id': 'item-1', 'snippet': {'resourceId': {'videoId': 'already-there'}}},
+        ]
+
+        with (
+            mock.patch.object(transfer, 'list_youtube_playlist_items', return_value=current),
+            mock.patch.object(transfer, 'delete_youtube_playlist_item') as delete_item,
+            mock.patch.object(transfer, 'add_youtube_playlist_item') as add_item,
+        ):
+            summary = transfer.sync_youtube_playlist_items(
+                Path('credentials.json'),
+                Path('oauth.json'),
+                'playlist-id',
+                ['already-there', 'new-1', 'new-2', 'new-3'],
+                resume=True,
+                max_new_items=2,
+            )
+
+        delete_item.assert_not_called()
+        self.assertEqual([call.args[3] for call in add_item.call_args_list], ['new-1', 'new-2'])
+        self.assertEqual(summary['existing_count'], 1)
+        self.assertEqual(summary['queued_count'], 3)
+        self.assertEqual(summary['inserted_count'], 2)
+        self.assertEqual(summary['remaining_count'], 1)
+        self.assertEqual(summary['estimated_read_quota_units'], 1)
+        self.assertEqual(summary['estimated_write_quota_units'], 100)
+
+    def test_publish_existing_playlist_skips_metadata_update_by_default(self):
+        source = {'playlist_name': 'Example Playlist'}
+
+        with (
+            mock.patch.object(transfer, 'update_youtube_playlist') as update_playlist,
+            mock.patch.object(transfer, 'create_youtube_playlist') as create_playlist,
+            mock.patch.object(
+                transfer,
+                'sync_youtube_playlist_items',
+                return_value={
+                    'existing_count': 0,
+                    'deleted_count': 0,
+                    'queued_count': 1,
+                    'inserted_count': 1,
+                    'remaining_count': 0,
+                    'estimated_read_quota_units': 1,
+                    'estimated_write_quota_units': 50,
+                },
+            ) as sync_items,
+        ):
+            playlist_id, playlist_url, summary = transfer.publish_playlist(
+                source,
+                ['video-1'],
+                'playlist-id',
+                Path('credentials.json'),
+                Path('oauth.json'),
+                resume=True,
+                update_metadata=False,
+                max_new_items=190,
+            )
+
+        update_playlist.assert_not_called()
+        create_playlist.assert_not_called()
+        sync_items.assert_called_once()
+        self.assertEqual(playlist_id, 'playlist-id')
+        self.assertEqual(playlist_url, 'https://music.youtube.com/playlist?list=playlist-id')
+        self.assertEqual(summary['metadata_quota_units'], 0)
+        self.assertEqual(summary['estimated_total_write_quota_units'], 50)
+        self.assertEqual(summary['estimated_total_quota_units'], 51)
 
 
 if __name__ == '__main__':

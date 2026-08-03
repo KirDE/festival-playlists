@@ -78,8 +78,12 @@ Publish a new YouTube Music playlist after OAuth is ready:
 python3 scripts/spotify_gmm_2026/youtube_music_transfer.py --publish
 ```
 
-Replace an existing YouTube Music playlist:
+YouTube Data API quota is counted in units, not requests. Playlist item inserts cost 50 units each, so the default publisher caps each run at 190 new items and reports the remaining count.
+
+Resume an existing YouTube Music playlist after the daily quota resets:
 
 ```bash
-YOUTUBE_MUSIC_PLAYLIST_ID=... python3 scripts/spotify_gmm_2026/youtube_music_transfer.py --publish
+YOUTUBE_MUSIC_PLAYLIST_ID=... python3 scripts/spotify_gmm_2026/youtube_music_transfer.py --publish --resume-publish
 ```
+
+Pass `--update-metadata` only when the playlist title or description needs to be rewritten. Use `--max-new-items -1` to disable the safety cap.

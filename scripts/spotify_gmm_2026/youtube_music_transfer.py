@@ -22,6 +22,10 @@ DEFAULT_OAUTH = Path('/home/openclaw/.openclaw/credentials/youtube-music-oauth.j
 DEFAULT_CACHE = Path('tmp/festival_playlists_cache/youtube_music_search_cache.json')
 DEFAULT_OUTPUT_DIR = Path('outputs/youtube_music')
 SEARCH_CACHE_VERSION = 'ytm-transfer-v2'
+DEFAULT_MAX_NEW_ITEMS = 190
+YOUTUBE_QUOTA_PLAYLIST_WRITE = 50
+YOUTUBE_QUOTA_PLAYLIST_ITEM_WRITE = 50
+YOUTUBE_QUOTA_PLAYLIST_ITEM_LIST = 1
 YOUTUBE_VERSION_HINTS = {
     'club',
     'demo',
@@ -256,24 +260,46 @@ def sync_youtube_playlist_items(
     video_ids: list[str],
     *,
     resume: bool,
-) -> None:
+    max_new_items: int | None,
+) -> dict:
     current = list_youtube_playlist_items(credentials_path, oauth_path, playlist_id)
+    list_page_count = max(1, (len(current) + 49) // 50)
     existing_video_ids = [
         item.get('snippet', {}).get('resourceId', {}).get('videoId')
         for item in current
         if item.get('snippet', {}).get('resourceId', {}).get('videoId')
     ]
+    existing_video_id_set = set(existing_video_ids)
+    deleted_count = 0
     if resume:
-        queued = [video_id for video_id in video_ids if video_id not in set(existing_video_ids)]
+        queued = [video_id for video_id in video_ids if video_id not in existing_video_id_set]
         start_position = len(existing_video_ids)
     else:
         for item in current:
             delete_youtube_playlist_item(credentials_path, oauth_path, item['id'])
+            deleted_count += 1
         queued = video_ids
         start_position = 0
 
+    total_queued = len(queued)
+    if max_new_items is not None:
+        queued = queued[:max_new_items]
+
     for index, video_id in enumerate(queued, start_position):
         add_youtube_playlist_item(credentials_path, oauth_path, playlist_id, video_id, index)
+
+    return {
+        'existing_count': len(existing_video_ids),
+        'deleted_count': deleted_count,
+        'queued_count': total_queued,
+        'inserted_count': len(queued),
+        'remaining_count': total_queued - len(queued),
+        'estimated_read_quota_units': list_page_count * YOUTUBE_QUOTA_PLAYLIST_ITEM_LIST,
+        'estimated_write_quota_units': (
+            deleted_count * YOUTUBE_QUOTA_PLAYLIST_ITEM_WRITE
+            + len(queued) * YOUTUBE_QUOTA_PLAYLIST_ITEM_WRITE
+        ),
+    }
 
 
 def search_youtube_track(ytmusic, query: dict, cache: dict, *, pause_seconds: float = 0.0) -> dict | None:
@@ -334,15 +360,36 @@ def publish_playlist(
     oauth_path: Path,
     *,
     resume: bool,
-) -> tuple[str, str]:
+    update_metadata: bool,
+    max_new_items: int | None,
+) -> tuple[str, str, dict]:
     title = source_report['playlist_name']
     description = 'Listen to all bands from Summer Breeze 2026.'
+    metadata_quota_units = 0
     if playlist_id:
-        update_youtube_playlist(credentials_path, oauth_path, playlist_id, title, description)
+        if update_metadata:
+            update_youtube_playlist(credentials_path, oauth_path, playlist_id, title, description)
+            metadata_quota_units = YOUTUBE_QUOTA_PLAYLIST_WRITE
     else:
         playlist_id = create_youtube_playlist(credentials_path, oauth_path, title, description)
-    sync_youtube_playlist_items(credentials_path, oauth_path, playlist_id, video_ids, resume=resume)
-    return playlist_id, f'https://music.youtube.com/playlist?list={playlist_id}'
+        metadata_quota_units = YOUTUBE_QUOTA_PLAYLIST_WRITE
+    publish_summary = sync_youtube_playlist_items(
+        credentials_path,
+        oauth_path,
+        playlist_id,
+        video_ids,
+        resume=resume,
+        max_new_items=max_new_items,
+    )
+    publish_summary['metadata_quota_units'] = metadata_quota_units
+    publish_summary['estimated_total_write_quota_units'] = (
+        metadata_quota_units + publish_summary['estimated_write_quota_units']
+    )
+    publish_summary['estimated_total_quota_units'] = (
+        publish_summary['estimated_total_write_quota_units']
+        + publish_summary['estimated_read_quota_units']
+    )
+    return playlist_id, f'https://music.youtube.com/playlist?list={playlist_id}', publish_summary
 
 
 def build_youtube_report(source_report: dict, source_tracks: list[dict], matched: list[dict], missing: list[dict], playlist_id: str = '', playlist_url: str = '') -> dict:
@@ -386,6 +433,13 @@ def main() -> int:
     parser.add_argument('--playlist-id', default=os.environ.get('YOUTUBE_MUSIC_PLAYLIST_ID', ''))
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--resume-publish', action='store_true')
+    parser.add_argument('--update-metadata', action='store_true')
+    parser.add_argument(
+        '--max-new-items',
+        type=int,
+        default=int(os.environ.get('YOUTUBE_MUSIC_MAX_NEW_ITEMS', DEFAULT_MAX_NEW_ITEMS)),
+        help='Maximum new playlist items to insert in this run. Use -1 to disable the safety cap.',
+    )
     parser.add_argument('--pause-seconds', type=float, default=0.0)
     args = parser.parse_args()
 
@@ -430,19 +484,25 @@ def main() -> int:
 
     playlist_id = ''
     playlist_url = ''
+    publish_summary = {}
     if args.publish:
-        playlist_id, playlist_url = publish_playlist(
+        max_new_items = None if args.max_new_items < 0 else args.max_new_items
+        playlist_id, playlist_url, publish_summary = publish_playlist(
             source_report,
             [item['videoId'] for item in matched],
             args.playlist_id or None,
             Path(args.credentials),
             Path(args.oauth),
             resume=args.resume_publish,
+            update_metadata=args.update_metadata,
+            max_new_items=max_new_items,
         )
 
     output = build_youtube_report(source_report, source_tracks, matched, missing, playlist_id, playlist_url)
+    if publish_summary:
+        output['publish_summary'] = publish_summary
     save_json(Path(args.output), output)
-    print(json.dumps({
+    summary = {
         'output': args.output,
         'playlist_url': playlist_url,
         'source_track_count': output['source_track_count'],
@@ -450,7 +510,10 @@ def main() -> int:
         'missing_track_count': output['missing_track_count'],
         'duplicate_video_ids': len(output['duplicate_video_ids']),
         'duplicate_song_keys': len(output['duplicate_song_keys']),
-    }, ensure_ascii=False))
+    }
+    if publish_summary:
+        summary['publish_summary'] = publish_summary
+    print(json.dumps(summary, ensure_ascii=False))
     return 0
 
 
