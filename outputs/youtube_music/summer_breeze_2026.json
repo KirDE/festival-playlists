@@ -9078,15 +9078,15 @@
     }
   ],
   "publish_summary": {
-    "existing_count": 195,
+    "existing_count": 385,
     "deleted_count": 0,
-    "queued_count": 442,
+    "queued_count": 252,
     "inserted_count": 190,
-    "remaining_count": 252,
-    "estimated_read_quota_units": 4,
+    "remaining_count": 62,
+    "estimated_read_quota_units": 8,
     "estimated_write_quota_units": 9500,
     "metadata_quota_units": 0,
     "estimated_total_write_quota_units": 9500,
-    "estimated_total_quota_units": 9504
+    "estimated_total_quota_units": 9508
   }
 }
