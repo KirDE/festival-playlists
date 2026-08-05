@@ -2,8 +2,8 @@
   "festival": "Summer Breeze 2026",
   "playlist_name": "Summer Breeze 2026: Festival Crash Course",
   "source_playlist_url": "https://open.spotify.com/playlist/6rWAXV1sR2E6ZDbHcWBVfD",
-  "playlist_id": "",
-  "playlist_url": "",
+  "playlist_id": "PLHtKoZBLlaCo",
+  "playlist_url": "https://music.youtube.com/playlist?list=PLHtKoZBLlaCo",
   "source_track_count": 655,
   "matched_track_count": 637,
   "missing_track_count": 18,
@@ -9076,5 +9076,17 @@
       "title": "Sonnen",
       "label": "Thormesis - Sonnen"
     }
-  ]
+  ],
+  "publish_summary": {
+    "existing_count": 195,
+    "deleted_count": 0,
+    "queued_count": 442,
+    "inserted_count": 190,
+    "remaining_count": 252,
+    "estimated_read_quota_units": 4,
+    "estimated_write_quota_units": 9500,
+    "metadata_quota_units": 0,
+    "estimated_total_write_quota_units": 9500,
+    "estimated_total_quota_units": 9504
+  }
 }
