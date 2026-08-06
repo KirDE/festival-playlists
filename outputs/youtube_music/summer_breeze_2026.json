@@ -9078,15 +9078,15 @@
     }
   ],
   "publish_summary": {
-    "existing_count": 385,
+    "existing_count": 583,
     "deleted_count": 0,
-    "queued_count": 252,
-    "inserted_count": 190,
-    "remaining_count": 62,
-    "estimated_read_quota_units": 8,
-    "estimated_write_quota_units": 9500,
+    "queued_count": 54,
+    "inserted_count": 54,
+    "remaining_count": 0,
+    "estimated_read_quota_units": 12,
+    "estimated_write_quota_units": 2700,
     "metadata_quota_units": 0,
-    "estimated_total_write_quota_units": 9500,
-    "estimated_total_quota_units": 9508
+    "estimated_total_write_quota_units": 2700,
+    "estimated_total_quota_units": 2712
   }
 }
