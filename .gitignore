@@ -7,3 +7,7 @@ tmp/
 spotify_tokens.json
 *.log
 outputs/
+.next/
+out/
+node_modules/
+*.tsbuildinfo

@@ -2,6 +2,30 @@
 
 Scripts for building festival playlists for metal festivals from festival lineups, recent setlist.fm songs, and streaming-platform catalog matches.
 
+The repository also contains **Festival Radar**, the static MVP for
+[festivals.kir-it.de](https://festivals.kir-it.de): 50 European festivals,
+filterable cards, festival details, artist pages and links to official ticket,
+Spotify and setlist.fm resources.
+
+## Festival Radar web app
+
+```bash
+npm install
+npm run dev
+```
+
+Production export:
+
+```bash
+npm run typecheck
+npm run test:data
+npm run build
+```
+
+The deployable static site is written to `out/`. Festival seed data lives in
+`data/festivals.ts`. Official source availability and the setlist.fm API are
+checked automatically every three days by GitHub Actions.
+
 ## Main scripts
 
 - `scripts/spotify_gmm_2026/festival_playlists.py` - current playlist builder for Graspop, Wacken, Rock im Park, Summer Breeze, and Impericon.
