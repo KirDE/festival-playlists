@@ -23,8 +23,11 @@ npm run build
 ```
 
 The deployable static site is written to `out/`. Festival seed data lives in
-`data/festivals.ts`. Official source availability and the setlist.fm API are
-checked automatically every three days by GitHub Actions.
+`data/festivals.ts` in this legacy snapshot. Production runtime ownership now
+belongs to [festival-radar](https://github.com/KirDE/festival-radar) and its
+application server. GitHub Actions here is limited to Quality (tests and build);
+the old scheduled source monitor has been retired. Do not restore operational
+checks, imports or playlist refreshes in Actions.
 
 ## Main scripts
 
